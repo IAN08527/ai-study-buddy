@@ -1,0 +1,23 @@
+// components/ToastProvider.js
+"use client";
+
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
+// This component will be used once, near the root of your application.
+export default function ToastProvider() {
+  return (
+    <ToastContainer 
+      position="top-right" 
+      autoClose={5000} 
+      hideProgressBar={false} 
+      newestOnTop={false}
+      closeOnClick
+      rtl={false}
+      pauseOnFocusLoss
+      draggable
+      pauseOnHover
+      theme="dark" // or "dark" or "colored"
+    />
+  );
+}
