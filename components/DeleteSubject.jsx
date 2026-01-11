@@ -1,7 +1,28 @@
 import React from "react";
+import { toast } from "react-toastify";
 
-const DeleteSubject = ({ removeDialog }) => {
-  const deleteSubject = () => {};
+const DeleteSubject = ({ removeDialog ,refreshFunction ,subjectID}) => {
+
+  const deleteSubject = async(subjectID) => {
+    if(subjectID != null){
+      const response = await fetch(`/api/deleteSubject/${subjectID}`,{
+        method: "DELETE",
+        headers: {
+          'Content-Type' : 'application/json'
+        }
+      })
+      const result = await response.json()
+
+      if(response.ok){
+        toast.success(result.message)
+        refreshFunction()
+        removeDialog()
+      }else{
+        toast.error(result.message)
+        removeDialog()
+      }
+    }
+  };
 
   return (
     <div className="absolute w-full h-full bg-[#000000] opacity-85 overflow-hidden flex justify-center items-center">
@@ -16,7 +37,7 @@ const DeleteSubject = ({ removeDialog }) => {
           </button>
           <button
             className="delete bg-[rgb(25,25,25)] w-30 h-8 flex justify-center items-center rounded-2xl cursor-pointer"
-            onClick={deleteSubject}
+            onClick={()=>{deleteSubject(subjectID)}}
           >
             <img src="/delete.svg" alt="editImage" />
           </button>

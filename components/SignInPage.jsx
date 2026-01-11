@@ -1,19 +1,151 @@
 "use client";
 
 import React from "react";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "react-toastify";
+
+const LoginForm = ({ handleSubmit }) => {
+  const email = useRef(null);
+  const password = useRef(null);
+
+  return (
+    <form className="flex flex-col w-full m-2">
+      <span className="font-medium mb-2">Email</span>
+      <input
+        className="w-full p-2 rounded-md bg-[rgb(25,25,25)] mb-4"
+        type="email"
+        name="email"
+        id="email"
+        ref={email}
+        placeholder="your.email@example.com"
+      />
+      <span className="font-medium mb-2">Password</span>
+      <input
+        className="w-full p-2 rounded-md bg-[rgb(25,25,25)] mb-4"
+        type="password"
+        name="password"
+        id="password"
+        ref={password}
+        placeholder="********"
+      />
+      <button
+        className="bg-white text-black font-medium h-13 rounded-xl mt-5"
+        onClick={(e) => {
+          e.preventDefault();
+          handleSubmit(e, email.current.value, password.current.value);
+        }}
+      >
+        Login
+      </button>
+    </form>
+  );
+};
+
+const SignupForm = ({ handleSubmit }) => {
+  const [passwordError, setPasswordError] = useState(null);
+  const email = useRef(null);
+  const password = useRef(null);
+  const confirmPassword = useRef(null);
+  const userName = useRef(null);
+
+  return (
+    <form className="flex flex-col w-full m-2">
+      <span className="font-medium mb-2">Your Name</span>
+      <input
+        className="w-full p-2 rounded-md bg-[rgb(25,25,25)] mb-4"
+        type="email"
+        name="email"
+        id="email"
+        ref={userName}
+        placeholder="E.g. John Snow"
+      />
+      <span className="font-medium mb-2">Email</span>
+      <input
+        className="w-full p-2 rounded-md bg-[rgb(25,25,25)] mb-4"
+        type="email"
+        name="email"
+        id="email"
+        ref={email}
+        placeholder="your.email@example.com"
+      />
+      <span className="font-medium mb-2">Password</span>
+      <input
+        className="w-full p-2 rounded-md bg-[rgb(25,25,25)] mb-4"
+        type="password"
+        name="password"
+        id="password"
+        ref={password}
+        placeholder="********"
+      />
+      <span className="font-medium mb-2">Confirm Password</span>
+      <input
+        className="w-full p-2 rounded-md bg-[rgb(25,25,25)] mb-4"
+        type="password"
+        name="conPassword"
+        id="conPassword"
+        ref={confirmPassword}
+        placeholder="********"
+      />
+      <button
+        type="submit"
+        className="bg-white text-black font-medium h-13 rounded-xl mt-5"
+        onClick={(e) => {
+          e.preventDefault();
+          if (password.current.value == confirmPassword.current.value) {
+            setPasswordError(null);
+            handleSubmit(
+              e,
+              email.current.value,
+              password.current.value,
+              userName.current.value
+            );
+          } else {
+            setPasswordError(
+              new Error("Password and Confirm password do not match")
+            );
+          }
+        }}
+      >
+        Sign Up
+      </button>
+
+      {passwordError === null ? (
+        ""
+      ) : (
+        <div className="message text-red-700">
+          The password and confirm password do not match
+        </div>
+      )}
+    </form>
+  );
+};
 
 const SignInPage = () => {
   const router = useRouter();
   const supabase = createClient();
   const [isLoginState, setisLoginState] = useState(true);
 
+  useEffect(() => {
+    checkForPreviousLogin()
+  }, []);
+
+  const checkForPreviousLogin = async () => {
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession();
+    if (session != null) {
+      router.push(
+        `/welcomeMessage?name=${session.user.user_metadata.name}&id=${session.user.id}`
+      );
+    }
+  };
+
   const handleSubmit = async (e, email, password, name) => {
     e.preventDefault();
-    const {data ,error} =
+    const { data, error } =
       isLoginState === true
         ? await supabase.auth.signInWithPassword({ email, password })
         : await supabase.auth.signUp({
@@ -25,8 +157,7 @@ const SignInPage = () => {
               },
             },
           });
-
-    const UserID = data.user.id
+    const UserID = data.user.id;
     if (error == null) {
       if (isLoginState == false) {
         const { data, error } = await supabase
@@ -41,7 +172,9 @@ const SignInPage = () => {
           .select();
         if (error) {
           toast.error(error.message);
-        } 
+        }else{
+          toast.success("Email Registered !!! Please Sign in")
+        }
       } else {
         const { data, error } = await supabase
           .from("User")
@@ -58,122 +191,6 @@ const SignInPage = () => {
       console.log(error.message);
       toast.error(error.message);
     }
-  };
-
-  const LoginForm = () => {
-    const email = useRef(null);
-    const password = useRef(null);
-
-    return (
-      <form className="flex flex-col w-full m-2">
-        <span className="font-medium mb-2">Email</span>
-        <input
-          className="w-full p-2 rounded-md bg-[rgb(25,25,25)] mb-4"
-          type="email"
-          name="email"
-          id="email"
-          ref={email}
-          placeholder="your.email@example.com"
-        />
-        <span className="font-medium mb-2">Password</span>
-        <input
-          className="w-full p-2 rounded-md bg-[rgb(25,25,25)] mb-4"
-          type="password"
-          name="password"
-          id="password"
-          ref={password}
-          placeholder="********"
-        />
-        <button
-          className="bg-white text-black font-medium h-13 rounded-xl mt-5"
-          onClick={(e) => {
-            e.preventDefault();
-            handleSubmit(e, email.current.value, password.current.value);
-          }}
-        >
-          Login
-        </button>
-      </form>
-    );
-  };
-
-  const SignupForm = () => {
-    const [passwordError, setPasswordError] = useState(null);
-    const email = useRef(null);
-    const password = useRef(null);
-    const confirmPassword = useRef(null);
-    const userName = useRef(null);
-
-    return (
-      <form className="flex flex-col w-full m-2">
-        <span className="font-medium mb-2">Your Name</span>
-        <input
-          className="w-full p-2 rounded-md bg-[rgb(25,25,25)] mb-4"
-          type="email"
-          name="email"
-          id="email"
-          ref={userName}
-          placeholder="E.g. John Snow"
-        />
-        <span className="font-medium mb-2">Email</span>
-        <input
-          className="w-full p-2 rounded-md bg-[rgb(25,25,25)] mb-4"
-          type="email"
-          name="email"
-          id="email"
-          ref={email}
-          placeholder="your.email@example.com"
-        />
-        <span className="font-medium mb-2">Password</span>
-        <input
-          className="w-full p-2 rounded-md bg-[rgb(25,25,25)] mb-4"
-          type="password"
-          name="password"
-          id="password"
-          ref={password}
-          placeholder="********"
-        />
-        <span className="font-medium mb-2">Confirm Password</span>
-        <input
-          className="w-full p-2 rounded-md bg-[rgb(25,25,25)] mb-4"
-          type="password"
-          name="conPassword"
-          id="conPassword"
-          ref={confirmPassword}
-          placeholder="********"
-        />
-        <button
-          type="submit"
-          className="bg-white text-black font-medium h-13 rounded-xl mt-5"
-          onClick={(e) => {
-            e.preventDefault();
-            if (password.current.value == confirmPassword.current.value) {
-              setPasswordError(null);
-              handleSubmit(
-                e,
-                email.current.value,
-                password.current.value,
-                userName.current.value
-              );
-            } else {
-              setPasswordError(
-                new Error("Password and Confirm password do not match")
-              );
-            }
-          }}
-        >
-          Sign Up
-        </button>
-
-        {passwordError === null ? (
-          ""
-        ) : (
-          <div className="message text-red-700">
-            The password and confirm password do not match
-          </div>
-        )}
-      </form>
-    );
   };
 
   return (
@@ -208,7 +225,11 @@ const SignInPage = () => {
         </button>
       </div>
 
-      {isLoginState == true ? <LoginForm /> : <SignupForm />}
+      {isLoginState == true ? (
+        <LoginForm handleSubmit={handleSubmit} />
+      ) : (
+        <SignupForm handleSubmit={handleSubmit} />
+      )}
     </div>
   );
 };

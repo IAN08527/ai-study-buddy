@@ -53,7 +53,7 @@ const ChaptersForm = ({
   );
 };
 
-const SubjectForm = ({ id, subDetails, removeSubjectForm }) => {
+const SubjectForm = ({ id, subDetails, removeSubjectForm ,refreshFunction}) => {
   const [subjectDetails, setSubjectDetails] = useState([
     { cName: "", cNotes: [], cYoutubeLink: [{ title: "", link: "" }] },
   ]);
@@ -137,6 +137,7 @@ const SubjectForm = ({ id, subDetails, removeSubjectForm }) => {
   const result = await response.json();
   if(response.ok){
     toast.success(result.message)
+    refreshFunction()
     removeSubjectForm()
   }else{
     toast.error(result.error)

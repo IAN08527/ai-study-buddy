@@ -58,33 +58,36 @@ const addChapter = async (
   userID,
   chapterIndex
 ) => {
-  const { data, error } = await supabase.from("Chapter").insert([
-    {
-      user_id: userID,
-      subject_id: subjectID,
-      Chapter_name: chapterDetails.cName,
-      order_index: chapterIndex,
-    },
-  ]).select();
+  const { data, error } = await supabase
+    .from("Chapter")
+    .insert([
+      {
+        user_id: userID,
+        subject_id: subjectID,
+        Chapter_name: chapterDetails.cName,
+        order_index: chapterIndex,
+      },
+    ])
+    .select();
 
   if (error) {
-  console.error("Insert Error:", error.message);
-  return; 
-}
+    console.error("Insert Error:", error.message);
+    return;
+  }
 
-  const chapterID = data[0].chapter_id
+  const chapterID = data[0].chapter_id;
 
   // Upload all the documents of the subject
-  for(const file of chapterDetails.cNotes){
-    await addDocument(supabase, file, chapterID, subjectID)
+  for (const file of chapterDetails.cNotes) {
+    await addDocument(supabase, file, chapterID, subjectID);
   }
 
   // Upload all the Youtube videos of the subjects
-  for(const linkObject of chapterDetails.cYoutubeLink){
-    if(linkObject.link == ""){
+  for (const linkObject of chapterDetails.cYoutubeLink) {
+    if (linkObject.link == "") {
       continue;
-    }else{
-      await addYoutubeLink(supabase, linkObject, chapterID, subjectID)
+    } else {
+      await addYoutubeLink(supabase, linkObject, chapterID, subjectID);
     }
   }
 
@@ -130,7 +133,23 @@ const addsubjectToDB = async (subjectData, id, supabase) => {
   }
 };
 
+/// The actual POST request
 export async function POST(request) {
+  // 1. VALIDATE SESSION
+  const supabase = await createClient();
+  const {
+    data: { session },
+    error: authError,
+  } = await supabase.auth.getSession();
+
+  // Check if session exists or if there's an auth error
+  if (authError || !session) {
+    return NextResponse.json(
+      { error: "Unauthorized: Please log in to perform this action." },
+      { status: 401 }
+    );
+  }
+
   try {
     const formData = await request.formData();
     const metadataString = formData.get("metadata");
@@ -148,7 +167,7 @@ export async function POST(request) {
     chapters.forEach((chapter, index) => {
       // Look for the specific key you appended on the frontend: "chapter_N_files"
       const chapterFiles = formData.getAll(`chapter_${index}_files`);
-      chapter.cNotes = chapterFiles; 
+      chapter.cNotes = chapterFiles;
     });
 
     // Safety check: ensure the path exists before assigning
@@ -158,12 +177,13 @@ export async function POST(request) {
       throw new Error("Invalid metadata structure received");
     }
 
-    const supabase = await createClient();
 
     // 3. Call the DB function with the correctly formatted object
     await addsubjectToDB(subjectData, id, supabase);
 
-    return NextResponse.json({ message: `${subjectData.FinalSubjectInfo.globalInfo.sName} created sucessfully !!!` });
+    return NextResponse.json({
+      message: `${subjectData.FinalSubjectInfo.globalInfo.sName} created sucessfully !!!`,
+    });
   } catch (err) {
     console.error("Critical Server Error:", err.message);
     return NextResponse.json({ error: err.message }, { status: 500 });
