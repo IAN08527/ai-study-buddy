@@ -1,7 +1,7 @@
 import React from "react";
 import { toast } from "react-toastify";
 
-const DeleteSubject = ({ removeDialog ,refreshFunction ,subjectID}) => {
+const DeleteSubject = ({ removeDialog ,refreshFunction ,subjectID , subjectName}) => {
 
   const deleteSubject = async(subjectID) => {
     if(subjectID != null){
@@ -27,7 +27,7 @@ const DeleteSubject = ({ removeDialog ,refreshFunction ,subjectID}) => {
   return (
     <div className="absolute w-full h-full bg-[#000000] opacity-85 overflow-hidden flex justify-center items-center">
       <div className="text-container">
-        <h4>Are you sure you want to delete "Operating System"</h4>
+        <h4>Are you sure you want to delete "{subjectName}"</h4>
         <div className="aciton-buttons flex justify-center gap-6 mt-5">
           <button
             className="edit bg-[rgb(25,25,25)] w-30 h-8 flex justify-center items-center rounded-2xl cursor-pointer"

@@ -11,7 +11,7 @@ const SubCard = ({
   chapterCount,
   notesCount,
   videoCount,
-  handleSubjectForm,
+  handleSubjectEdit,
   setShowDeleteDialog,
 }) => {
   return (
@@ -34,14 +34,14 @@ const SubCard = ({
       <div className="aciton-buttons flex justify-between mt-5">
         <button
           className="edit-button bg-[rgb(25,25,25)] w-30 h-8 flex justify-center items-center rounded-2xl cursor-pointer"
-          onClick={handleSubjectForm}
+          onClick={handleSubjectEdit}
         >
           <img src="/edit.svg" alt="editImage" />
         </button>
         <button
           className="delete bg-[rgb(25,25,25)] w-30 h-8 flex justify-center items-center rounded-2xl cursor-pointer"
           onClick={() => {
-            setShowDeleteDialog(subjectID);
+            setShowDeleteDialog({id:subjectID , name :subName});
           }}
         >
           <img src="/delete.svg" alt="editImage" />
@@ -67,7 +67,7 @@ const Dashboard = ({ id }) => {
 
   const closeDeleteDialog = () => setShowDeleteDialog(null);
 
-  const handleSubjectForm = (e) => {};
+  const handleSubjectEdit = (e) => {};
 
   const refreshSubjects = async () => {
     try {
@@ -110,7 +110,7 @@ const Dashboard = ({ id }) => {
             <SubCard
               key={subjectDetail.subjectID}
               subjectID={subjectDetail.subjectID}
-              handleSubjectForm={handleSubjectForm}
+              handleSubjectEdit={handleSubjectEdit}
               setShowDeleteDialog={setShowDeleteDialog}
               subName={subjectDetail.subjectName}
               chapterCount={subjectDetail.subjectChapterCount}
@@ -124,7 +124,8 @@ const Dashboard = ({ id }) => {
         <DeleteSubject
           removeDialog={closeDeleteDialog}
           refreshFunction={refreshSubjects}
-          subjectID={showDeleteDialog}
+          subjectID={showDeleteDialog.id}
+          subjectName={showDeleteDialog.name}
         />
       ) : (
         ""
