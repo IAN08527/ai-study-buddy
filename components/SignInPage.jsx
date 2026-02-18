@@ -12,9 +12,9 @@ const LoginForm = ({ handleSubmit }) => {
 
   return (
     <form className="flex flex-col w-full m-2">
-      <span className="font-medium mb-2">Email</span>
+      <span className="font-medium mb-2 text-sm text-brand-text-secondary">Email</span>
       <input
-        className="w-full p-2 rounded-md bg-[rgb(25,25,25)] mb-4"
+        className="w-full p-2 rounded-md bg-brand-bg mb-4 border border-brand-border focus:border-sky-500 focus:outline-none transition-colors"
         type="email"
         name="email"
         id="email"
@@ -54,7 +54,7 @@ const SignupForm = ({ handleSubmit }) => {
     <form className="flex flex-col w-full m-2">
       <span className="font-medium mb-2">Your Name</span>
       <input
-        className="w-full p-2 rounded-md bg-[rgb(25,25,25)] mb-4"
+        className="w-full p-2 rounded-md bg-brand-bg mb-4 border border-brand-border focus:border-sky-500 focus:outline-none transition-colors"
         type="email"
         name="email"
         id="email"
@@ -63,7 +63,7 @@ const SignupForm = ({ handleSubmit }) => {
       />
       <span className="font-medium mb-2">Email</span>
       <input
-        className="w-full p-2 rounded-md bg-[rgb(25,25,25)] mb-4"
+        className="w-full p-2 rounded-md bg-brand-bg mb-4 border border-brand-border focus:border-sky-500 focus:outline-none transition-colors"
         type="email"
         name="email"
         id="email"
@@ -72,7 +72,7 @@ const SignupForm = ({ handleSubmit }) => {
       />
       <span className="font-medium mb-2">Password</span>
       <input
-        className="w-full p-2 rounded-md bg-[rgb(25,25,25)] mb-4"
+        className="w-full p-2 rounded-md bg-brand-bg mb-4 border border-brand-border focus:border-sky-500 focus:outline-none transition-colors"
         type="password"
         name="password"
         id="password"
@@ -81,7 +81,7 @@ const SignupForm = ({ handleSubmit }) => {
       />
       <span className="font-medium mb-2">Confirm Password</span>
       <input
-        className="w-full p-2 rounded-md bg-[rgb(25,25,25)] mb-4"
+        className="w-full p-2 rounded-md bg-brand-bg mb-4 border border-brand-border focus:border-sky-500 focus:outline-none transition-colors"
         type="password"
         name="conPassword"
         id="conPassword"
@@ -132,14 +132,13 @@ const SignInPage = () => {
   }, []);
 
   const checkForPreviousLogin = async () => {
+    // secure: verify with server to avoid redirect loops if local session is stale
     const {
-      data: { session },
+      data: { user },
       error,
-    } = await supabase.auth.getSession();
-    if (session != null) {
-      router.push(
-        `/welcomeMessage?name=${session.user.user_metadata.name}&id=${session.user.id}`
-      );
+    } = await supabase.auth.getUser();
+    if (user != null) {
+      router.push(`/welcomeMessage`);
     }
   };
 
@@ -157,7 +156,7 @@ const SignInPage = () => {
               },
             },
           });
-    const UserID = data.user.id;
+    const UserID = data.user?.id;
     if (error == null) {
       if (isLoginState == false) {
         const { data, error } = await supabase
@@ -184,7 +183,7 @@ const SignInPage = () => {
         if (error) {
           toast.error(error.message);
         } else {
-          router.push(`/welcomeMessage?name=${data.name}&id=${data.user_id}`);
+          router.push(`/welcomeMessage`);
         }
       }
     } else {
@@ -194,22 +193,22 @@ const SignInPage = () => {
   };
 
   return (
-    <div className="contianer p-8 w-96 max-w-96 bg-[rgb(32,32,32)] rounded-xl text-white flex flex-col items-center shadow-2xl">
+    <div className="contianer p-8 w-96 max-w-[90vw] bg-brand-card rounded-xl text-brand-text-primary flex flex-col items-center shadow-2xl border border-brand-border animate-fade-in">
       <div className="message-text w-full flex flex-col items-center mb-10 ">
-        <h1 className="title font-medium text-2xl p-2">AI Study Buddy</h1>
-        <h3 className="subtitle font-light text-[rgb(155,154,151)] p-2">
+        <h1 className="title font-medium text-2xl p-2 text-center">AI Study Buddy</h1>
+        <h3 className="subtitle font-light text-brand-text-secondary p-2 text-center">
           Your syllabus-aware study companion
         </h3>
       </div>
 
-      <div className="options w-full h-12 flex justify-evenly items-center rounded-xl bg-[rgb(25,25,25)] font-medium relative">
+      <div className="options w-full h-12 flex justify-evenly items-center rounded-xl bg-brand-bg font-medium relative border border-brand-border">
         <button
           onClick={() => {
             setisLoginState(true);
           }}
-          className={`w-39 h-10 rounded-md flex justify-center items-center bg-[${
-            isLoginState == true ? "rgb(32,32,32)" : "rgb(25,25,25)"
-          }]`}
+          className={`w-36 h-10 rounded-md flex justify-center items-center transition-colors ${
+            isLoginState === true ? "bg-brand-card text-brand-text-primary" : "bg-transparent text-brand-text-secondary hover:text-white"
+          }`}
         >
           Login
         </button>
@@ -217,9 +216,9 @@ const SignInPage = () => {
           onClick={() => {
             setisLoginState(false);
           }}
-          className={`w-39 h-10 rounded-md flex justify-center items-center bg-[${
-            isLoginState == true ? "rgb(25,25,25)" : "rgb(32,32,32)"
-          }]`}
+          className={`w-36 h-10 rounded-md flex justify-center items-center transition-colors ${
+            isLoginState === false ? "bg-brand-card text-brand-text-primary" : "bg-transparent text-brand-text-secondary hover:text-white"
+          }`}
         >
           Sign Up
         </button>

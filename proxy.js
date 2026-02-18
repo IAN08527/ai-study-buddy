@@ -1,11 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
-import { NextRequest } from "next/server";
-import { updateSession } from "@/lib/supabase/proxy";
 
-export async function middleware(request) {
+export default async function proxy(request) {
   let response = NextResponse.next({
-    request: { headers: request.headers },
+    request: {
+      headers: request.headers,
+    },
   });
 
   const supabase = createServerClient(
@@ -17,10 +17,14 @@ export async function middleware(request) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
+          cookiesToSet.forEach(({ name, value, options }) =>
             request.cookies.set(name, value)
           );
-          response = NextResponse.next({ request });
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          });
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           );
@@ -33,24 +37,33 @@ export async function middleware(request) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Redirect if logged in and visiting '/'
+  // 1. Redirect if logged in and visiting '/' (Root)
   if (user && request.nextUrl.pathname === "/") {
-    const name = user.user_metadata.name;
-    const id = user.id;
-    return NextResponse.redirect(
-      new URL(`/welcomeMessage?name=${name}&id=${id}`, request.url)
-    );
+    return NextResponse.redirect(new URL("/welcomeMessage", request.url));
+  }
+
+  // 2. Protect Dashboard routes
+  if (!user && request.nextUrl.pathname.startsWith("/dashboard")) {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
+  // 3. Protect Welcome routes
+  if (!user && request.nextUrl.pathname.startsWith("/welcomeMessage")) {
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   return response;
 }
 
-export async function proxy(request) {
-  return await updateSession(request);
-}
-
 export const config = {
   matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public folder files (svg, png, jpg, etc)
+     */
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

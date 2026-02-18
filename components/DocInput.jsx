@@ -2,7 +2,7 @@ import React from "react";
 import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 
-const DocInput = ({ Notes, onUpdate }) => {
+const DocInput = ({ Notes, onUpdate, existingFiles = [] }) => {
   const fileNames = Notes || [];
 
   const validateDocuments = (fileArray) => {
@@ -31,16 +31,22 @@ const DocInput = ({ Notes, onUpdate }) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
       let validPDFfiles = validateDocuments(files);
-      onUpdate(validPDFfiles);
+      // Merge with existing new uploads
+      onUpdate([...fileNames, ...validPDFfiles]);
     }
   };
 
+  const removeNewFile = (index) => {
+      const updated = fileNames.filter((_, i) => i !== index);
+      onUpdate(updated);
+  }
+
   return (
     <div className="flex items-center justify-center w-full">
-      <label className="flex flex-col items-center justify-center w-full border-2 border-dashed border-[rgb(51,51,51)] rounded-xl cursor-pointer mt-2 mb-5 hover:border-sky-500/50 transition-colors">
+      <label className="flex flex-col items-center justify-center w-full border-2 border-dashed border-brand-border rounded-xl cursor-pointer mt-2 mb-5 hover:border-sky-500/50 transition-colors bg-[rgb(32,32,32)]">
         <div className="flex flex-col items-center justify-center pt-5 pb-6">
           <svg
-            className="w-10 h-10 mb-4 text-[rgb(155,154,151)]"
+            className="w-10 h-10 mb-4 text-brand-text-secondary"
             aria-hidden="true"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
@@ -55,21 +61,47 @@ const DocInput = ({ Notes, onUpdate }) => {
             />
           </svg>
 
-          <div className="text-center px-4">
-            {fileNames.length > 0 ? (
-              fileNames.map((file, index) => (
-                <div key={index} className="font-normal text-sky-400 text-sm">
-                  {file.name}
+          <div className="text-center px-4 w-full">
+            {/* Display Existing Files (Server-side) */}
+            {existingFiles.length > 0 && (
+                <div className="mb-2 w-full">
+                    <p className="text-xs text-brand-text-secondary uppercase mb-1">Saved Files:</p>
+                    {existingFiles.map((file, index) => (
+                        <div key={`existing-${index}`} className="font-normal text-sky-400 text-sm bg-black/20 p-1 rounded mb-1 flex justify-between items-center">
+                            <span>{file.title || file.name}</span>
+                            {/* We can add delete logic for existing files later */}
+                        </div>
+                    ))}
                 </div>
-              ))
-            ) : (
+            )}
+
+            {/* Display New Pending Uploads */}
+            {fileNames.length > 0 && (
+               <div className="w-full">
+                   <p className="text-xs text-brand-text-secondary uppercase mb-1">New Uploads:</p>
+                   {fileNames.map((file, index) => (
+                    <div key={index} className="font-normal text-green-400 text-sm flex justify-between items-center bg-black/20 p-1 rounded mb-1">
+                      <span>{file.name}</span>
+                      <button 
+                        onClick={(e) => {
+                            e.preventDefault(); 
+                            removeNewFile(index);
+                        }}
+                        className="text-red-400 hover:text-red-200 px-2"
+                      >✕</button>
+                    </div>
+                  ))}
+               </div>
+            )}
+            
+            {fileNames.length === 0 && existingFiles.length === 0 && (
               <>
-                <p className="mb-2 text-sm text-[rgb(155,154,151)]">
-                  <span className="font-semibold text-[rgb(155,154,151)]">
-                    Click to upload syllabus
+                <p className="mb-2 text-sm text-brand-text-secondary">
+                  <span className="font-semibold">
+                    Click to upload
                   </span>
                 </p>
-                <p className="text-xs text-[rgb(155,154,151)] uppercase tracking-wider">
+                <p className="text-xs text-brand-text-secondary uppercase tracking-wider">
                   (PDF)
                 </p>
               </>

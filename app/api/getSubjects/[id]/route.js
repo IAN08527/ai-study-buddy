@@ -22,10 +22,11 @@ const getAllSubjectDetails = async (supabase, id) => {
     const finalSubjectDetails = subjectNameData.map((subject) => {
       const subjectName = subject.name;
       const subjectID = subject.subject_id;
-      const subjectChapterCount = subject.Chapter[0].count;
+      // Safety check for empty chapters array
+      const subjectChapterCount = subject.Chapter?.[0]?.count || 0;
 
       const subjectResourcesCount = subject.Resources.reduce((acc, curr) => {
-        const types = curr.resource_types;
+        const types = curr.resource_type;
 
         acc[types] = (acc[types] || 0) + 1;
 

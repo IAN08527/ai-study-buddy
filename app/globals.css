@@ -1,21 +1,24 @@
 @import "tailwindcss";
 
-body{
-  min-height: 100vh;
-  min-width: 100vw;
+@theme {
+  --color-brand-bg: rgb(25 25 25);
+  --color-brand-card: rgb(32 32 32);
+  --color-brand-border: rgb(51 51 51);
+  --color-brand-text-primary: #ffffff;
+  --color-brand-text-secondary: rgb(155 154 151);
+
+  --animate-fade-in: fadeIn 0.5s ease-in-out;
+  --animate-slide-up: slideUp 0.5s ease-out forwards;
 }
 
-@keyframes breathe {
-    0%, 100% {
-        transform: scale(1);
-    }
-    50% {
-        transform: scale(1.05);
-    }
-}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
 
-.animate-breathe-text {
-    animation: breathe 8s ease-in-out infinite;
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {
@@ -23,6 +26,58 @@ body{
     transform: translateY(20px);
     opacity: 0;
   }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Ensure body uses the theme background if not overridden */
+body {
+  background-color: var(--color-brand-bg);
+  color: var(--color-brand-text-primary);
+  min-height: 100vh;
+  min-width: 100vw;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+body {
+  min-height: 100vh;
+  min-width: 100vw;
+}
+
+@keyframes breathe {
+
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.animate-breathe-text {
+  animation: breathe 8s ease-in-out infinite;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+
   to {
     transform: translateY(0);
     opacity: 1;
@@ -37,11 +92,14 @@ body{
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
   }
+
   .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;
   }
+
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(25,25,25,0.8); /* Tailwind gray-300 */
+    background: rgba(25, 25, 25, 0.8);
+    /* Tailwind gray-300 */
     border-radius: 10px;
   }
 }

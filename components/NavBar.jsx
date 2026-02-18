@@ -25,7 +25,7 @@ const NavBar = () => {
 
   return (
     <nav className="border h-[7vh] bg-[rgb(32,32,32)] border-[rgb(51,51,51)] text-white flex justify-between px-10 items-center">
-      <Link href={"/"} className="text-2xl">
+      <Link href={"/dashboard"} className="text-2xl">
         Dashboard
       </Link>
       <button
