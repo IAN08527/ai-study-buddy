@@ -11,7 +11,8 @@ RULES:
 4. If the student's documents contradict widely accepted facts, PRIORITIZE the document content and note the discrepancy.
 5. Be concise but thorough. Use bullet points, numbered lists, and bold text for clarity.
 6. If you don't know something and it's not in the context, say so honestly.
-7. When asked about topics covered in the documents, structure your response clearly with headings if appropriate.`;
+7. When asked about topics covered in the documents, structure your response clearly with headings if appropriate.
+8. Note that content labeled as "Unit" or "Module" in syllabus documents is often equivalent to "Chapters".`;
 
 export async function POST(request) {
   const supabase = await createClient();
@@ -96,7 +97,7 @@ export async function POST(request) {
         const rpcParams = {
           query_embedding: queryEmbedding,
           p_subject_id: subjectId,
-          match_count: 5,
+          match_count: 20, // Increased from 5 to capture more context
         };
 
         if (resourceIds && resourceIds.length > 0) {
@@ -108,6 +109,13 @@ export async function POST(request) {
 
         if (rpcError) {
           console.error("Vector search error:", rpcError.message);
+        } else {
+          console.log(`🔍 Vector search found ${chunks?.length || 0} chunks.`);
+          if (chunks && chunks.length > 0) {
+            chunks.forEach((c, i) => console.log(`   [${i}] ${c.document_title} (Score: ${c.similarity.toFixed(4)}) - ${c.chunk_text.substring(0, 50)}...`));
+          } else {
+            console.warn("⚠️  No relevant chunks found.");
+          }
         }
 
         const relevantChunks = chunks || [];
