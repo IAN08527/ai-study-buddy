@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { processPdfForRag } from "@/lib/pdfProcessor";
 
 // 1. Helper to upload binary to Storage and record in Database
 const addDocument = async (supabase, file, chapterId, subjectID) => {
@@ -21,19 +22,28 @@ const addDocument = async (supabase, file, chapterId, subjectID) => {
     throw new Error(`Storage upload failed: ${uploadError.message}`);
 
   // Insert link into Resources table
-  const { error: resourceEntryError } = await supabase
+  const { data: resourceData, error: resourceEntryError } = await supabase
     .from("Resources")
     .insert([
       {
         chapter_id: chapterId,
         resource_type: chapterId == null ? "Syllabus PDF" : "Notes PDF",
         title: file.name,
-        link: uploadData.path, // Store the internal path
+        link: uploadData.path,
         subject_id: subjectID,
       },
-    ]);
+    ])
+    .select("resource_id")
+    .single();
 
   if (resourceEntryError) throw resourceEntryError;
+
+  // Process PDF for RAG (non-blocking: don't fail subject creation if Ollama is down)
+  try {
+    await processPdfForRag(supabase, buffer, resourceData.resource_id);
+  } catch (ragError) {
+    console.warn("RAG processing skipped:", ragError.message);
+  }
 };
 
 // 2. Helper to save YouTube links

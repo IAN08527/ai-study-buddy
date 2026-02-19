@@ -19,7 +19,7 @@ export async function GET(request, { params }) {
       .select(`
         subject_id,
         name,
-        Resources!Resources_subject_id_fkey (resource_id, resource_type, title, link)
+        Resources!Resources_subject_id_fkey (resource_id, resource_type, title, link, chapter_id)
       `)
       .eq("subject_id", id)
       .eq("user_id", user.id)
@@ -43,14 +43,14 @@ export async function GET(request, { params }) {
     if (chapterError) throw chapterError;
 
     // 3. Structure the response for the frontend
-    const globalSyllabus = subjectData.Resources.filter(r => r.resource_type === "Syllabus PDF");
-    const globalVideos = subjectData.Resources.filter(r => r.resource_type === "YouTube Link");
+    const globalSyllabus = subjectData.Resources.filter(r => r.resource_type === "Syllabus PDF" && !r.chapter_id);
+    const globalVideos = subjectData.Resources.filter(r => (r.resource_type === "YouTube Link" || r.resource_type === "YouTube Playlist") && !r.chapter_id);
 
     const chapters = chapterData.map(ch => ({
       chapterID: ch.chapter_id,
       cName: ch.Chapter_name,
       cNotes: ch.Resources.filter(r => r.resource_type === "Notes PDF" || r.resource_type === "PDF"),
-      cYoutubeLink: ch.Resources.filter(r => r.resource_type === "YouTube Link"),
+      cYoutubeLink: ch.Resources.filter(r => r.resource_type === "YouTube Link" || r.resource_type === "YouTube Playlist"),
     }));
 
     return NextResponse.json({

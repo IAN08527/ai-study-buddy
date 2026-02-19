@@ -12,9 +12,13 @@
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.87.1",
     "next": "16.0.8",
+    "pdf-parse": "^2.4.5",
     "react": "19.2.1",
     "react-dom": "19.2.1",
+    "react-markdown": "^10.1.0",
+    "react-syntax-highlighter": "^16.1.0",
     "react-toastify": "^11.0.5",
+    "remark-gfm": "^4.0.1",
     "tailwindcss": "^4.1.18"
   },
   "devDependencies": {

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./subject.css";
 
 @theme {
   --color-brand-bg: rgb(25 25 25);

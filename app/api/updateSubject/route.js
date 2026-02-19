@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { processPdfForRag } from "@/lib/pdfProcessor";
 
 // Reusing helper functions from addSubject/route.js logic would be ideal, 
 // but for now we'll duplicate or inline to keep it self-contained and modify for updates.
@@ -19,7 +20,7 @@ const addDocument = async (supabase, file, chapterId, subjectID) => {
 
   if (uploadError) throw new Error(`Storage upload failed: ${uploadError.message}`);
 
-  const { error: resourceEntryError } = await supabase.from("Resources").insert([
+  const { data: resourceData, error: resourceEntryError } = await supabase.from("Resources").insert([
     {
       chapter_id: chapterId,
       resource_type: chapterId == null ? "Syllabus PDF" : "Notes PDF",
@@ -27,9 +28,18 @@ const addDocument = async (supabase, file, chapterId, subjectID) => {
       link: uploadData.path,
       subject_id: subjectID,
     },
-  ]);
+  ])
+  .select("resource_id")
+  .single();
 
   if (resourceEntryError) throw resourceEntryError;
+
+  // Process PDF for RAG (non-blocking)
+  try {
+    await processPdfForRag(supabase, buffer, resourceData.resource_id);
+  } catch (ragError) {
+    console.warn("RAG processing skipped:", ragError.message);
+  }
 };
 
 const addYoutubeLink = async (supabase, linkObject, chapterId, subjectID) => {

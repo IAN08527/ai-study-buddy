@@ -2,6 +2,7 @@
 
 import React from "react";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import DeleteSubject from "./DeleteSubject";
 import SubjectForm from "./SubjectForm";
 import { toast } from "react-toastify";
@@ -14,9 +15,10 @@ const SubCard = ({
   videoCount,
   handleSubjectEdit,
   setShowDeleteDialog,
+  onCardClick,
 }) => {
   return (
-    <div className="subject-card border border-brand-border w-full h-auto min-h-[14rem] p-6 pt-4 rounded-xl bg-brand-card hover:border-sky-500/50 transition-all duration-300 animate-slide-up shadow-lg hover:shadow-sky-500/10">
+    <div className="subject-card border border-brand-border w-full h-auto min-h-[14rem] p-6 pt-4 rounded-xl bg-brand-card hover:border-sky-500/50 transition-all duration-300 animate-slide-up shadow-lg hover:shadow-sky-500/10 cursor-pointer" onClick={onCardClick}>
       <h6 className="mb-4 text-xl h-14 font-semibold text-brand-text-primary line-clamp-2">{subName}</h6>
       <ul className="includList text-brand-text-secondary flex flex-col gap-2">
         <li className="flex gap-2 text-sm items-center">
@@ -35,14 +37,15 @@ const SubCard = ({
       <div className="aciton-buttons flex justify-between mt-5">
         <button
           className="edit-button bg-brand-bg hover:bg-zinc-800 w-12 h-8 flex justify-center items-center rounded-full cursor-pointer transition-colors"
-          onClick={handleSubjectEdit}
+          onClick={(e) => { e.stopPropagation(); handleSubjectEdit(e); }}
           title="Edit Subject (Coming Soon)"
         >
           <img src="/edit.svg" alt="editImage" className="w-4 h-4" />
         </button>
         <button
           className="delete bg-brand-bg hover:bg-rose-900/50 w-12 h-8 flex justify-center items-center rounded-full cursor-pointer transition-colors"
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation();
             setShowDeleteDialog({id:subjectID , name :subName});
           }}
           title="Delete Subject"
@@ -55,6 +58,7 @@ const SubCard = ({
 };
 
 const Dashboard = ({ id }) => {
+  const router = useRouter();
   const [showDeleteDialog, setShowDeleteDialog] = useState(null);
   const [showSubjectForm, setShowSubjectForm] = useState(false);
   const [subjectDetails, setSubjectDetails] = useState(null); // subject details for edit button
@@ -122,6 +126,7 @@ const Dashboard = ({ id }) => {
               chapterCount={subjectDetail.subjectChapterCount}
               notesCount={subjectDetail.subjectResourcesCount["Notes PDF"]}
               videoCount={subjectDetail.subjectResourcesCount["YouTube Link"]}
+              onCardClick={() => router.push(`/subject/${subjectDetail.subjectID}`)}
             />
           );
         })}

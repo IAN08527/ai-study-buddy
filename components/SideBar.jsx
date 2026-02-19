@@ -52,9 +52,12 @@ const SideBar = () => {
     SetsidebarClosed(!sidebarClosed);
   };
 
-  const SubCard = ({ name }) => {
+  const SubCard = ({ name, subjectID }) => {
     return (
-      <li className={`flex items-center ${sidebarClosed?"ml-2.5":"ml-5"} transition-all duration-300 hover:bg-white/10 p-2 rounded-lg cursor-pointer`}>
+      <li
+        className={`flex items-center ${sidebarClosed?"ml-2.5":"ml-5"} transition-all duration-300 hover:bg-white/10 p-2 rounded-lg cursor-pointer`}
+        onClick={() => router.push(`/subject/${subjectID}`)}
+      >
         <div className={`indicator w-10 h-10 flex shrink-0 justify-center items-center rounded-full bg-brand-bg mr-2 ${sidebarClosed?"":"ml-1"} border border-brand-border text-xs`}>
           {name.charAt(0).toUpperCase()}
         </div>
@@ -100,7 +103,7 @@ const SideBar = () => {
         </span>
         <ul className="w-full flex flex-col gap-2 overflow-x-hidden custom-scrollbar overflow-y-auto h-[calc(93vh-100px)] pt-2 pb-20">
             {subjects.map((sub) => (
-                <SubCard key={sub.subjectID} name={sub.subjectName} />
+                <SubCard key={sub.subjectID} name={sub.subjectName} subjectID={sub.subjectID} />
             ))}
             {subjects.length === 0 && !sidebarClosed && (
                 <li className="text-xs text-center text-brand-text-secondary mt-5">No subjects yet</li>
