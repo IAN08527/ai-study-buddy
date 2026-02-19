@@ -106,6 +106,17 @@ const Citations = ({ citations }) => {
                 <span className="chat-citation-title">{c.documentTitle}</span>
                 <span className="chat-citation-score">{c.similarity}% match</span>
               </div>
+              <div className="chat-citation-meta">
+                {c.pageNumber && (
+                  <span className="chat-citation-badge">📄 Page {c.pageNumber}</span>
+                )}
+                {c.sectionTitle && (
+                  <span className="chat-citation-badge">📑 {c.sectionTitle}</span>
+                )}
+                {c.isTableData && (
+                  <span className="chat-citation-badge chat-citation-badge--table">📊 Table Data</span>
+                )}
+              </div>
               <p className="chat-citation-excerpt">{c.excerpt}</p>
             </div>
           ))}
@@ -114,6 +125,7 @@ const Citations = ({ citations }) => {
     </div>
   );
 };
+
 
 // ── Mention Dropdown ─────────────────────────────────────
 const MentionDropdown = ({ pdfs, filter, onSelect }) => {
@@ -415,11 +427,25 @@ const AIChatTab = ({ subjectName, subjectId, allPdfs }) => {
                                         {String(children).replace(/\n$/, '')}
                                     </SyntaxHighlighter>
                                     ) : (
-                                    <code className={`chat-inline-code ${className}`} {...props}>
+                                    <code className={`chat-inline-code ${className || ''}`} {...props}>
                                         {children}
                                     </code>
                                     )
-                                }
+                                },
+                                table({children, ...props}) {
+                                    return (
+                                        <div className="chat-md-table-wrapper">
+                                            <table {...props}>{children}</table>
+                                        </div>
+                                    )
+                                },
+                                a({children, href, ...props}) {
+                                    return (
+                                        <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+                                            {children}
+                                        </a>
+                                    )
+                                },
                             }}
                         >
                             {msg.content}
