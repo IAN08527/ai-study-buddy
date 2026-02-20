@@ -1,8 +1,8 @@
 {
     "system_architecture": {
-        "name": "Advanced RAG (Retrieval-Augmented Generation)",
-        "description": "Production-grade RAG pipeline with hybrid search, contextual chunking, and reranking.",
-        "version": "2.0.0",
+        "name": "Local RAG (Retrieval-Augmented Generation)",
+        "description": "A fully local RAG pipeline using Supabase for vector storage and Ollama for inference.",
+        "version": "1.0.0",
         "last_updated": "2026-02-19"
     },
     "ingestion_pipeline": {
@@ -12,48 +12,29 @@
         ],
         "processing_steps": [
             {
-                "step": "Layout-Aware Text Extraction",
-                "tool": "pdf-parse (with page-level tracking)",
+                "step": "Text Extraction",
+                "tool": "pdf-parse",
                 "version": "1.1.1",
-                "handling": "Extracts text with page boundaries, converts to Markdown format"
+                "handling": "Extracts raw text from PDF buffer"
             },
             {
-                "step": "Markdown-Aware Chunking",
-                "strategy": "Section-based with heading detection",
+                "step": "Chunking",
+                "strategy": "Fixed Token/Character Window",
                 "parameters": {
-                    "max_chunk_size": 800,
-                    "overlap": 100,
+                    "chunk_size": 500,
+                    "chunk_overlap": 50,
                     "splitting_rules": [
-                        "Heading boundaries (##, ###)",
-                        "Table preservation (atomic chunks)",
-                        "Paragraph boundaries",
-                        "Sentence boundaries"
+                        "Period + Space",
+                        "Newline"
                     ]
-                },
-                "metadata_extracted": {
-                    "page_number": "Tracked from PDF page boundaries",
-                    "section_title": "Detected from heading patterns (Unit/Chapter/Module/numbered headings)",
-                    "is_table_data": "Boolean, detected from column alignment patterns"
                 }
-            },
-            {
-                "step": "Contextual Summary Generation",
-                "model": "deepseek-r1:8b",
-                "provider": "Ollama (Local)",
-                "description": "For each chunk, generates a 1-sentence context (e.g., 'This section discusses Test Plan creation'). Prepended to text before embedding."
-            },
-            {
-                "step": "Document Summary Generation",
-                "model": "deepseek-r1:8b",
-                "provider": "Ollama (Local)",
-                "description": "Generates a global multi-sentence summary per document. Stored in Resources table for overview questions."
             },
             {
                 "step": "Embedding Generation",
                 "model": "nomic-embed-text",
                 "provider": "Ollama (Local)",
                 "dimensions": 768,
-                "input_format": "context_summary + chunk_text (prepended for better retrieval)"
+                "api_endpoint": "/api/embeddings"
             },
             {
                 "step": "Vector Storage",
@@ -64,38 +45,17 @@
                     "resource_id": "UUID (Foreign Key to Resources)",
                     "content_embeddings": "vector(768)",
                     "text": "text",
-                    "chunk_index": "integer",
-                    "page_number": "integer",
-                    "section_title": "text",
-                    "is_table_data": "boolean",
-                    "context_summary": "text",
-                    "text_search": "tsvector (auto-generated via trigger)"
+                    "chunk_index": "integer"
                 }
             }
         ]
     },
     "retrieval_pipeline": {
-        "method": "Hybrid Search with RRF (Reciprocal Rank Fusion)",
-        "function_name": "hybrid_search",
-        "index_types": [
-            "HNSW (vector_cosine_ops) — for vector similarity",
-            "GIN (text_search) — for full-text search"
-        ],
-        "hybrid_search_algorithm": {
-            "step_1": "Vector cosine similarity search (top 40)",
-            "step_2": "PostgreSQL full-text search via tsvector + websearch_to_tsquery (top 40)",
-            "step_3": "RRF merge: score = 1/(k + vector_rank) + 1/(k + text_rank), k=60",
-            "step_4": "Return top 20 by combined RRF score"
-        },
-        "reranking": {
-            "model": "deepseek-r1:8b",
-            "provider": "Ollama (Local)",
-            "method": "Send query + 20 chunks to DeepSeek, returns ranked JSON array of indices",
-            "output": "Top 5 most relevant chunks"
-        },
+        "method": "Cosine Similarity",
+        "function_name": "match_chunks",
+        "index_type": "ivfflat (vector_cosine_ops)",
         "parameters": {
-            "hybrid_match_count": 20,
-            "rerank_output_count": 5,
+            "match_count": 20,
             "filter_by": [
                 "subject_id",
                 "resource_ids (optional)"
@@ -103,8 +63,7 @@
         },
         "query_processing": {
             "embedding_model": "nomic-embed-text",
-            "dimensions": 768,
-            "text_search": "websearch_to_tsquery('english', query_text)"
+            "dimensions": 768
         }
     },
     "generation_pipeline": {
@@ -120,26 +79,20 @@
         },
         "prompt_structure": {
             "system_prompt": [
-                "You are a precise Academic Tutor.",
+                "You are an AI Study Buddy — a knowledgeable, friendly, and precise tutor.",
                 "RULES:",
-                "1. You will receive 5 highly relevant chunks and a 'Global Summary' of the document.",
-                "2. If the answer involves counting chapters/units, use the Global Summary FIRST.",
-                "3. If the answer involves a specific detail, use the top-ranked chunks.",
-                "4. ALWAYS cite the page number and section name: [Page X, Section: 'Name']",
-                "5. If a chunk is marked as table data, present it in structured format.",
-                "6. Base answers PRIMARILY on provided context.",
-                "7. Prioritize document content over general facts.",
-                "8. Be concise but thorough.",
-                "9. Admit ignorance if answer is not in context.",
-                "10. 'Unit', 'Module', and 'Chapter' are often equivalent terms."
+                "1. Base your answers PRIMARILY on the provided context.",
+                "2. Always cite which document your information comes from.",
+                "3. Supplement with general knowledge only if necessary.",
+                "4. Prioritize document content over general facts if contradictory.",
+                "5. Be concise but thorough.",
+                "6. Admit ignorance if answer is not in context.",
+                "7. Use headings for topics.",
+                "8. Note that 'Units' in syllabus are equivalent to 'Chapters'."
             ],
-            "global_summary_injection": {
-                "format": "GLOBAL DOCUMENT SUMMARY:\n[Title]: summary_text",
-                "purpose": "Used for overview/counting questions"
-            },
             "context_injection": {
-                "format": "[Document: {title} | Page: {page} | Section: \"{section}\" | Type: TABLE DATA | Context: {summary} | Relevance Rank: {rank}]\n{chunk_text}",
-                "fallback": "No relevant context found."
+                "format": "RELEVANT CONTEXT FROM STUDENT'S DOCUMENTS:\n---\n[Document: {title}]\n{chunk_text}\n---",
+                "fallback": "No relevant context found in the student's documents."
             },
             "history_injection": {
                 "format": "PREVIOUS CONVERSATION:\nStudent: {msg}\nAI Tutor: {msg}",
@@ -152,7 +105,7 @@
         "event_types": [
             {
                 "type": "status",
-                "payload": "Verifying access... -> Encoding... -> Searching... -> Reranking... -> Thinking... -> Generating..."
+                "payload": "Verifying access... -> Encoding... -> Searching... -> Thinking... -> Generating..."
             },
             {
                 "type": "reasoning",
@@ -164,27 +117,13 @@
             },
             {
                 "type": "done",
-                "payload": "Citations array (Title, Excerpt, Similarity, Page Number, Section Title, Is Table Data)"
+                "payload": "Citations array (Title, Excerpt, Similarity Score)"
             },
             {
                 "type": "error",
                 "payload": "Error message"
             }
         ],
-        "citation_display": {
-            "fields": [
-                "documentTitle",
-                "similarity",
-                "pageNumber",
-                "sectionTitle",
-                "isTableData",
-                "excerpt"
-            ],
-            "badges": [
-                "Page number",
-                "Section title",
-                "Table data indicator"
-            ]
-        }
+        "citation_logic": "Deduplicated list of source documents used in context"
     }
 }

@@ -1,31 +1,18 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateEmbedding, streamChatWithOllama } from "@/lib/ollama";
-import { rerankChunks } from "@/lib/reranker";
 
-const SYSTEM_PROMPT = `You are a precise Academic Tutor. Your role is to help students understand their course material with accuracy, proper citations, and beautifully formatted responses.
+const SYSTEM_PROMPT = `You are an AI Study Buddy — a knowledgeable, friendly, and precise tutor. Your job is to help students understand their course material.
 
-KNOWLEDGE RULES:
-1. You will receive 5 highly relevant chunks and a 'Global Summary' of the document.
-2. If the answer involves counting chapters, units, or modules, use the Global Summary FIRST.
-3. If the answer involves a specific detail, concept, or definition, use the top-ranked chunks.
-4. Do NOT include inline citations like [Page X] or [Section: "Name"] in your response text. The system automatically shows source references in a separate panel.
-5. If a chunk is marked as table data, present the information in a structured format.
-6. Base your answers PRIMARILY on the provided context. If the context doesn't contain enough information, clearly state: "Based on general knowledge: ..."
-7. If information contradicts between chunks and general knowledge, PRIORITIZE the document content.
-8. If you don't know something and it's not in the context, say so honestly.
-9. Note that "Unit", "Module", and "Chapter" in syllabus documents are often equivalent terms.
-
-FORMATTING RULES — You MUST output responses in valid GitHub Flavored Markdown:
-1. Use \`##\` for Unit titles (e.g., "## Unit I: Software Testing Fundamentals").
-2. Use \`###\` for sub-topics within a unit (e.g., "### Key Definitions").
-3. IMPORTANT: Always put a blank line before any heading (## or ###). Never place a heading immediately after text on the previous line.
-4. Always present marks distributions, comparisons, schedules, or structured data using **Markdown Tables**.
-5. Use **bold** (\`**text**\`) for important terminology like COs, TLOs, key definitions, and technical terms.
-6. If the context contains a code snippet or tool command (e.g., Selenium), use a syntax-highlighted code block with the language specified (e.g., \`\`\`java or \`\`\`python).
-7. Use horizontal rules (\`---\`) to separate different documents or major sections in your response.
-8. Use bullet points (\`-\`) for listing topics and numbered lists (\`1.\`) for sequential steps.
-9. Structure every response as: **Header → Content → Summary/Key Takeaway**.`;
+RULES:
+1. Base your answers PRIMARILY on the provided context from the student's uploaded documents. If the context contains the answer, use it.
+2. Always cite which document your information comes from using the format: [Source: Document Name].
+3. If the context doesn't contain enough information, you may supplement with your general knowledge but clearly indicate: "Based on general knowledge: ..."
+4. If the student's documents contradict widely accepted facts, PRIORITIZE the document content and note the discrepancy.
+5. Be concise but thorough. Use bullet points, numbered lists, and bold text for clarity.
+6. If you don't know something and it's not in the context, say so honestly.
+7. When asked about topics covered in the documents, structure your response clearly with headings if appropriate.
+8. Note that content labeled as "Unit" or "Module" in syllabus documents is often equivalent to "Chapters".`;
 
 export async function POST(request) {
   const supabase = await createClient();
@@ -105,89 +92,42 @@ export async function POST(request) {
         sendStatus("Encoding your question...");
         const queryEmbedding = await generateEmbedding(query);
 
-        // 4. Hybrid Search (Vector + Full-Text + RRF)
+        // 4. Vector similarity search
         sendStatus("Searching your documents...");
         const rpcParams = {
           query_embedding: queryEmbedding,
-          query_text: query,
           p_subject_id: subjectId,
-          match_count: 20,
+          match_count: 20, // Increased from 5 to capture more context
         };
 
         if (resourceIds && resourceIds.length > 0) {
           rpcParams.p_resource_ids = resourceIds;
         }
 
-        const { data: hybridChunks, error: rpcError } = await supabase
-          .rpc("hybrid_search", rpcParams);
+        const { data: chunks, error: rpcError } = await supabase
+          .rpc("match_chunks", rpcParams);
 
         if (rpcError) {
-          console.error("Hybrid search error:", rpcError.message);
+          console.error("Vector search error:", rpcError.message);
         } else {
-          console.log(`🔍 Hybrid search found ${hybridChunks?.length || 0} chunks.`);
-          if (hybridChunks && hybridChunks.length > 0) {
-            hybridChunks.slice(0, 5).forEach((c, i) =>
-              console.log(`   [${i}] ${c.document_title} (RRF: ${c.rrf_score?.toFixed(4)}, Sim: ${c.similarity?.toFixed(4)}) - ${c.chunk_text.substring(0, 50)}...`)
-            );
+          console.log(`🔍 Vector search found ${chunks?.length || 0} chunks.`);
+          if (chunks && chunks.length > 0) {
+            chunks.forEach((c, i) => console.log(`   [${i}] ${c.document_title} (Score: ${c.similarity.toFixed(4)}) - ${c.chunk_text.substring(0, 50)}...`));
+          } else {
+            console.warn("⚠️  No relevant chunks found.");
           }
         }
 
-        const candidateChunks = hybridChunks || [];
+        const relevantChunks = chunks || [];
 
-        // 5. Rerank — filter top 20 down to top 5
-        sendStatus("Reranking results...");
-        let relevantChunks;
-        if (candidateChunks.length > 5) {
-          try {
-            relevantChunks = await rerankChunks(query, candidateChunks, 5);
-            console.log(`🔀 Reranked ${candidateChunks.length} → ${relevantChunks.length} chunks`);
-          } catch (rerankErr) {
-            console.warn("Reranking failed, using top 5 from hybrid search:", rerankErr.message);
-            relevantChunks = candidateChunks.slice(0, 5);
-          }
-        } else {
-          relevantChunks = candidateChunks;
-        }
-
-        // 6. Fetch document summaries for Global Summary
-        sendStatus("Loading document context...");
-        const resourceIdsInResults = [...new Set(relevantChunks.map(c => c.resource_id))];
-        let globalSummary = "";
-        if (resourceIdsInResults.length > 0) {
-          const { data: resources } = await supabase
-            .from("Resources")
-            .select("title, document_summary")
-            .in("resource_id", resourceIdsInResults);
-
-          if (resources && resources.length > 0) {
-            globalSummary = resources
-              .filter(r => r.document_summary)
-              .map(r => `[${r.title}]: ${r.document_summary}`)
-              .join("\n\n");
-          }
-        }
-
-        // 7. Assemble context with rich metadata
+        // 5. Assemble context
         sendStatus("Assembling context...");
-        const contextParts = relevantChunks.map((chunk, idx) => {
-          const meta = [];
-          meta.push(`Document: ${chunk.document_title}`);
-          if (chunk.page_number) meta.push(`Page: ${chunk.page_number}`);
-          if (chunk.section_title) meta.push(`Section: "${chunk.section_title}"`);
-          if (chunk.is_table_data) meta.push(`Type: TABLE DATA`);
-          if (chunk.context_summary) meta.push(`Context: ${chunk.context_summary}`);
-          meta.push(`Relevance Rank: ${idx + 1}`);
-
-          return `[${meta.join(" | ")}]\n${chunk.chunk_text}`;
-        });
-
+        const contextParts = relevantChunks.map((chunk) =>
+          `[Document: ${chunk.document_title}]\n${chunk.chunk_text}`
+        );
         const contextBlock = contextParts.length > 0
-          ? `TOP 5 MOST RELEVANT CHUNKS (reranked by relevance):\n---\n${contextParts.join("\n---\n")}\n---`
+          ? `RELEVANT CONTEXT FROM STUDENT'S DOCUMENTS:\n---\n${contextParts.join("\n---\n")}\n---`
           : "No relevant context found in the student's documents.";
-
-        const summaryBlock = globalSummary
-          ? `GLOBAL DOCUMENT SUMMARY (use for overview/counting questions):\n${globalSummary}`
-          : "";
 
         const historyBlock = chatHistory.length > 0
           ? "PREVIOUS CONVERSATION:\n" + chatHistory.map(m =>
@@ -198,8 +138,6 @@ export async function POST(request) {
         const fullPrompt = [
           SYSTEM_PROMPT,
           "",
-          summaryBlock,
-          "",
           contextBlock,
           "",
           historyBlock,
@@ -209,7 +147,7 @@ export async function POST(request) {
           "AI Tutor's Answer:",
         ].filter(Boolean).join("\n");
 
-        // 8. Stream the response from Ollama
+        // 6. Stream the response from Ollama
         sendStatus("Thinking...");
         const ollamaStream = await streamChatWithOllama(fullPrompt);
         const reader = ollamaStream.getReader();
@@ -272,27 +210,23 @@ export async function POST(request) {
         // Clean up any remaining think tags from the full response
         fullResponse = fullResponse.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
 
-        // 9. Build citations with rich metadata
+        // 7. Build citations
         const citations = relevantChunks.map(chunk => ({
           documentTitle: chunk.document_title,
           excerpt: chunk.chunk_text.slice(0, 200) + (chunk.chunk_text.length > 200 ? "..." : ""),
-          similarity: Math.round((chunk.similarity || 0) * 100),
-          pageNumber: chunk.page_number || null,
-          sectionTitle: chunk.section_title || null,
-          isTableData: chunk.is_table_data || false,
+          similarity: Math.round(chunk.similarity * 100),
         }));
 
         const uniqueCitations = [];
         const seenDocs = new Set();
         for (const citation of citations) {
-          const key = `${citation.documentTitle}-p${citation.pageNumber}-${citation.sectionTitle}`;
-          if (!seenDocs.has(key)) {
-            seenDocs.add(key);
+          if (!seenDocs.has(citation.documentTitle)) {
+            seenDocs.add(citation.documentTitle);
             uniqueCitations.push(citation);
           }
         }
 
-        // 10. Save chat history
+        // 8. Save chat history
         sendStatus("Saving conversation...");
         const { error: historyError } = await supabase
           .from("Chat_history")
@@ -305,7 +239,7 @@ export async function POST(request) {
           console.error("Failed to save chat history:", historyError.message);
         }
 
-        // 11. Send completion with citations
+        // 9. Send completion with citations
         sendDone(uniqueCitations);
 
       } catch (error) {

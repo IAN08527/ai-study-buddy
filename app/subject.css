@@ -490,6 +490,50 @@
     color: rgb(255, 150, 150) !important;
 }
 
+/* Markdown styling inside chat */
+.chat-md-content {
+    word-break: break-word;
+}
+
+.chat-md-h {
+    font-weight: 700;
+    margin: 8px 0 4px;
+    color: rgb(240, 240, 240);
+}
+
+h2.chat-md-h {
+    font-size: 1.05rem;
+}
+
+h3.chat-md-h {
+    font-size: 0.95rem;
+}
+
+h4.chat-md-h {
+    font-size: 0.9rem;
+}
+
+.chat-md-list {
+    margin: 6px 0;
+    padding-left: 20px;
+    list-style: disc;
+}
+
+.chat-md-li {
+    margin-bottom: 2px;
+}
+
+.chat-md-li--num {
+    list-style: decimal;
+}
+
+.chat-inline-code {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.85em;
+}
 
 /* @ Mention dropdown */
 .chat-mention-dropdown {
@@ -683,32 +727,6 @@
     margin: 0;
 }
 
-.chat-citation-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-bottom: 6px;
-}
-
-.chat-citation-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    padding: 2px 8px;
-    background: rgba(56, 139, 253, 0.08);
-    border: 1px solid rgba(56, 139, 253, 0.15);
-    border-radius: 10px;
-    font-size: 0.7rem;
-    color: rgb(130, 175, 240);
-}
-
-.chat-citation-badge--table {
-    background: rgba(255, 190, 80, 0.08);
-    border-color: rgba(255, 190, 80, 0.2);
-    color: rgb(255, 200, 120);
-}
-
-
 /* Status Indicator */
 .chat-status-indicator {
     display: flex;
@@ -851,213 +869,117 @@
     word-break: break-word;
     font-size: 0.95rem;
     color: rgb(230, 230, 230);
-    line-height: 1.7;
+    line-height: 1.6;
 }
 
-.chat-md-content>*:first-child {
-    margin-top: 0;
-}
-
-.chat-md-content>*:last-child {
-    margin-bottom: 0;
-}
-
-/* ── Headings ─────────────────────────────── */
 .chat-md-content h1,
 .chat-md-content h2,
 .chat-md-content h3,
 .chat-md-content h4 {
     color: #ffffff;
-    margin-top: 24px;
-    margin-bottom: 12px;
+    margin-top: 20px;
+    margin-bottom: 10px;
     font-weight: 600;
-    letter-spacing: -0.01em;
 }
 
 .chat-md-content h1 {
     font-size: 1.4rem;
-    color: rgb(130, 180, 255);
-    padding-bottom: 8px;
-    border-bottom: 2px solid;
-    border-image: linear-gradient(to right, rgba(100, 160, 255, 0.6), transparent) 1;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 6px;
 }
 
 .chat-md-content h2 {
     font-size: 1.25rem;
-    color: rgb(120, 170, 255);
-    padding-bottom: 6px;
-    border-bottom: 1px solid;
-    border-image: linear-gradient(to right, rgba(100, 160, 255, 0.4), transparent) 1;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 4px;
 }
 
 .chat-md-content h3 {
-    font-size: 1.12rem;
-    color: rgb(160, 195, 255);
-    padding-left: 10px;
-    border-left: 3px solid rgba(100, 160, 255, 0.5);
-    margin-top: 20px;
+    font-size: 1.1rem;
 }
 
 .chat-md-content h4 {
     font-size: 1rem;
-    color: rgb(180, 205, 255);
 }
 
-/* ── Paragraphs ───────────────────────────── */
 .chat-md-content p {
     margin-bottom: 12px;
 }
 
-/* ── Lists ────────────────────────────────── */
 .chat-md-content ul,
 .chat-md-content ol {
     margin-bottom: 12px;
     padding-left: 24px;
 }
 
-.chat-md-content ul {
-    list-style: none;
-}
-
-.chat-md-content ul>li {
-    position: relative;
-    padding-left: 6px;
-}
-
-.chat-md-content ul>li::before {
-    content: "▸";
-    position: absolute;
-    left: -18px;
-    color: rgb(100, 160, 255);
-    font-size: 0.85em;
-    font-weight: 700;
-}
-
-.chat-md-content ol>li {
-    padding-left: 4px;
-}
-
-.chat-md-content ol>li::marker {
-    color: rgb(100, 160, 255);
-    font-weight: 600;
-}
-
 .chat-md-content li {
-    margin-bottom: 6px;
-    line-height: 1.65;
-}
-
-.chat-md-content li>ul,
-.chat-md-content li>ol {
-    margin-top: 4px;
     margin-bottom: 4px;
 }
 
-/* ── Bold / Strong ────────────────────────── */
 .chat-md-content strong {
-    color: rgb(230, 240, 255);
-    font-weight: 700;
+    color: #fff;
+    font-weight: 600;
 }
 
-/* ── Tables ───────────────────────────────── */
-.chat-md-table-wrapper {
-    overflow-x: auto;
-    margin: 16px 0;
-    border-radius: 10px;
-    border: 1px solid rgba(100, 160, 255, 0.15);
-}
-
+/* Tables */
 .chat-md-content table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.88rem;
-    margin: 0;
+    margin: 16px 0;
+    font-size: 0.9rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    overflow: hidden;
 }
 
 .chat-md-content th,
 .chat-md-content td {
-    padding: 10px 16px;
+    padding: 10px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
     text-align: left;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .chat-md-content th {
-    background: linear-gradient(135deg, rgba(56, 139, 253, 0.15), rgba(100, 160, 255, 0.08));
+    background: rgba(255, 255, 255, 0.05);
     font-weight: 600;
-    color: rgb(160, 200, 255);
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    border-bottom: 1px solid rgba(100, 160, 255, 0.2);
+    color: #fff;
 }
 
-.chat-md-content td {
-    background: rgba(0, 0, 0, 0.15);
-}
-
-.chat-md-content tr:nth-child(even) td {
+.chat-md-content tr:nth-child(even) {
     background: rgba(255, 255, 255, 0.02);
 }
 
-.chat-md-content tr:hover td {
-    background: rgba(56, 139, 253, 0.06);
-}
-
-/* ── Horizontal Rules ─────────────────────── */
-.chat-md-content hr {
-    border: none;
-    height: 1px;
-    background: linear-gradient(to right, transparent, rgba(100, 160, 255, 0.4), transparent);
-    margin: 24px 0;
-}
-
-/* ── Blockquotes ──────────────────────────── */
+/* Blockquotes */
 .chat-md-content blockquote {
-    border-left: 3px solid rgb(100, 160, 255);
-    padding: 12px 16px;
+    border-left: 4px solid rgb(56, 139, 253);
+    padding-left: 16px;
     margin: 16px 0;
-    color: rgb(190, 200, 215);
+    color: rgb(180, 180, 180);
     font-style: italic;
     background: rgba(56, 139, 253, 0.05);
+    padding: 12px 16px;
     border-radius: 0 8px 8px 0;
 }
 
-.chat-md-content blockquote p:last-child {
-    margin-bottom: 0;
-}
-
-/* ── Code (inline) ────────────────────────── */
+/* Code blocks (handled by syntax highlighter, but for inline) */
 .chat-inline-code {
-    background: rgba(100, 160, 255, 0.1);
-    border: 1px solid rgba(100, 160, 255, 0.15);
-    border-radius: 5px;
-    padding: 2px 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    padding: 2px 5px;
     font-family: 'Consolas', 'Monaco', monospace;
     font-size: 0.85em;
     color: rgb(255, 200, 150);
 }
 
-/* ── Code blocks (pre) ────────────────────── */
+/* Preformatted text blocks (if syntax highlighter fails or for raw output) */
 .chat-md-content pre {
-    background: #1a1a2e;
-    padding: 14px 16px;
-    border-radius: 10px;
+    background: #1e1e1e;
+    padding: 12px;
+    border-radius: 8px;
     overflow-x: auto;
     margin: 16px 0;
-    border: 1px solid rgba(100, 160, 255, 0.12);
-}
-
-/* ── Links ────────────────────────────────── */
-.chat-md-content a {
-    color: rgb(100, 160, 255);
-    text-decoration: none;
-    border-bottom: 1px solid rgba(100, 160, 255, 0.3);
-    transition: border-color 0.2s, color 0.2s;
-}
-
-.chat-md-content a:hover {
-    color: rgb(140, 190, 255);
-    border-bottom-color: rgb(140, 190, 255);
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 
