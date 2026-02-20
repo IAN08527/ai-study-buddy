@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { toast } from "react-toastify";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 
@@ -154,7 +155,9 @@ const AIChatTab = ({ subjectName, subjectId, allPdfs }) => {
   const [mentionFilter, setMentionFilter] = useState("");
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const messagesEndRef = useRef(null);
+  const scrollContainerRef = useRef(null);
   const textareaRef = useRef(null);
+  const isAtBottom = useRef(true);
 
   useEffect(() => {
     const loadHistory = async () => {
@@ -178,9 +181,28 @@ const AIChatTab = ({ subjectName, subjectId, allPdfs }) => {
     if (subjectId) loadHistory();
   }, [subjectId]);
 
+  const scrollToBottom = useCallback((smooth = true) => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: smooth ? "smooth" : "auto" });
+    }
+  }, []);
+
+  const handleScroll = () => {
+    if (scrollContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+      // If we are within 100px of the bottom, consider it "at bottom"
+      const atBottom = scrollHeight - scrollTop - clientHeight < 100;
+      isAtBottom.current = atBottom;
+    }
+  };
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isStreaming, currentStatus]);
+    if (isAtBottom.current) {
+      // During streaming, use "auto" behavior to prevent the choppy/laggy animations
+      // Use "smooth" only for standard history loading or user message sending
+      scrollToBottom(!isStreaming);
+    }
+  }, [messages, isStreaming, currentStatus, scrollToBottom]);
 
   const displayMessages = useMemo(() => {
     const welcome = {
@@ -311,7 +333,12 @@ const AIChatTab = ({ subjectName, subjectId, allPdfs }) => {
         ]);
       }
     } catch (error) {
-      toast.error(error.message);
+      if (error.message.includes("too many requests") || error.message.includes("429")) {
+        toast.error("AI service is busy (Rate Limit). Please wait a few seconds.");
+      } else {
+        toast.error(error.message);
+      }
+      
       setMessages((prev) => [
         ...prev,
         { id: `error-${Date.now()}`, role: "assistant", content: `⚠️ ${error.message}`, isError: true },
@@ -378,7 +405,11 @@ const AIChatTab = ({ subjectName, subjectId, allPdfs }) => {
         )}
       </div>
 
-      <div className="chat-messages custom-scrollbar">
+      <div 
+        className="chat-messages custom-scrollbar" 
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+      >
         {isLoadingHistory ? (
           <div className="chat-loading-history">
             <div className="subject-spinner" style={{ width: 24, height: 24, borderWidth: 2 }} />
@@ -399,9 +430,9 @@ const AIChatTab = ({ subjectName, subjectId, allPdfs }) => {
                     {/* Render reasoning block if present */}
                     {msg.reasoning && <ReasoningBlock content={msg.reasoning} />}
                     {/* Render message content using ReactMarkdown with GFM */}
-                    <div className="chat-md-content">
+                    <div className="chat-md-content prose prose-slate max-w-none dark:prose-invert prose-headings:text-blue-600 prose-table:border prose-table:border-slate-200 prose-th:bg-slate-50 prose-th:p-2 prose-td:p-2">
                         <ReactMarkdown 
-                            remarkPlugins={[remarkGfm]}
+                            remarkPlugins={[remarkGfm, remarkBreaks]}
                             components={{
                                 code({node, inline, className, children, ...props}) {
                                     const match = /language-(\w+)/.exec(className || '')

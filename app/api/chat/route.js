@@ -1,18 +1,30 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { generateEmbedding, streamChatWithOllama } from "@/lib/ollama";
+import { generateEmbedding } from "@/lib/gemini";
+import { Groq } from "groq-sdk";
 
 const SYSTEM_PROMPT = `You are an AI Study Buddy — a knowledgeable, friendly, and precise tutor. Your job is to help students understand their course material.
 
-RULES:
+FORMATTING RULES:
+1. You MUST output responses in valid GitHub Flavored Markdown with a clear visual hierarchy:
+   - Use '#' for the main Title of the response (the student's topic).
+   - Use '##' for major sections or Unit titles.
+   - Use '###' for sub-topics or detailed points.
+   - Use standard paragraphs for clear explanations.
+   - Use bolding (**text**) for important terminology, key definitions, and critical concepts.
+2. Always present marks distributions, comparisons, or schedules using Markdown Tables.
+3. If the context contains a code snippet or tool command (e.g., Selenium, SQL), use a syntax-highlighted code block.
+4. Use horizontal rules (---) to separate major sections.
+5. NEVER use HTML tags like <br />. Use standard Markdown newline conventions (two newlines for a paragraph break).
+6. DO NOT include any "Note", "Summary", or "Source" sections at the end of your response.
+7. DO NOT include inline citations (e.g., [Source: Document Name]) within the text. Citations are handled by the system UI separately.
+
+CONTENT RULES:
 1. Base your answers PRIMARILY on the provided context from the student's uploaded documents. If the context contains the answer, use it.
-2. Always cite which document your information comes from using the format: [Source: Document Name].
-3. If the context doesn't contain enough information, you may supplement with your general knowledge but clearly indicate: "Based on general knowledge: ..."
-4. If the student's documents contradict widely accepted facts, PRIORITIZE the document content and note the discrepancy.
-5. Be concise but thorough. Use bullet points, numbered lists, and bold text for clarity.
-6. If you don't know something and it's not in the context, say so honestly.
-7. When asked about topics covered in the documents, structure your response clearly with headings if appropriate.
-8. Note that content labeled as "Unit" or "Module" in syllabus documents is often equivalent to "Chapters".`;
+2. If the context doesn't contain enough information, you may supplement with your general knowledge but clearly indicate: "Based on general knowledge: ..."
+3. If the student's documents contradict widely accepted facts, PRIORITIZE the document content and note the discrepancy.
+4. Be concise but thorough.
+5. If you don't know something and it's not in the context, say so honestly.`;
 
 export async function POST(request) {
   const supabase = await createClient();
@@ -94,14 +106,22 @@ export async function POST(request) {
 
         // 4. Vector similarity search
         sendStatus("Searching your documents...");
-        const rpcParams = {
-          query_embedding: queryEmbedding,
-          p_subject_id: subjectId,
-          match_count: 20, // Increased from 5 to capture more context
-        };
-
+        
+        let rpcParams;
         if (resourceIds && resourceIds.length > 0) {
-          rpcParams.p_resource_ids = resourceIds;
+          rpcParams = {
+            query_embedding: queryEmbedding,
+            p_subject_id: subjectId,
+            p_resource_ids: resourceIds,
+            match_count: 10
+          };
+        } else {
+          rpcParams = {
+            query_embedding: queryEmbedding,
+            p_subject_id: subjectId,
+            p_resource_ids: null,
+            match_count: 10
+          };
         }
 
         const { data: chunks, error: rpcError } = await supabase
@@ -135,80 +155,47 @@ export async function POST(request) {
             ).join("\n")
           : "";
 
-        const fullPrompt = [
-          SYSTEM_PROMPT,
-          "",
+        const fullPromptText = [
           contextBlock,
           "",
           historyBlock,
           "",
-          `Student's Question: ${query}`,
-          "",
-          "AI Tutor's Answer:",
+          `Student's Question: ${query}`
         ].filter(Boolean).join("\n");
 
-        // 6. Stream the response from Ollama
+        const messages = [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: fullPromptText }
+        ];
+
         sendStatus("Thinking...");
-        const ollamaStream = await streamChatWithOllama(fullPrompt);
-        const reader = ollamaStream.getReader();
-        const decoder = new TextDecoder();
+        const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+        const groqStream = await groq.chat.completions.create({
+          messages,
+          model: 'openai/gpt-oss-120b',
+          stream: true,
+        });
 
         let fullResponse = "";
-        let insideThinkBlock = false;
-        let buffer = "";
         let startedGenerating = false;
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        for await (const chunk of groqStream) {
+          const reasoning = chunk.choices[0]?.delta?.reasoning || '';
+          const token = chunk.choices[0]?.delta?.content || '';
+          
+          if (reasoning) {
+            controller.enqueue(encoder.encode(JSON.stringify({ type: "reasoning", token: reasoning }) + "\n"));
+          }
 
-          buffer += decoder.decode(value, { stream: true });
-
-          // Ollama streams newline-delimited JSON
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || ""; // Keep incomplete line in buffer
-
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            try {
-              const parsed = JSON.parse(line);
-              const token = parsed.response || "";
-
-              if (!token) continue;
-
-              // Handle <think>...</think> blocks from DeepSeek R1
-              if (token.includes("<think>")) {
-                insideThinkBlock = true;
-                sendStatus("Thinking...");
-                continue;
-              }
-              if (token.includes("</think>")) {
-                insideThinkBlock = false;
-                sendStatus("Generating response...");
-                continue;
-              }
-
-              if (insideThinkBlock) {
-                // Send reasoning tokens separately
-                controller.enqueue(encoder.encode(JSON.stringify({ type: "reasoning", token }) + "\n"));
-                continue;
-              }
-
-              if (!startedGenerating) {
-                startedGenerating = true;
-                sendStatus("Generating response...");
-              }
-
-              fullResponse += token;
-              sendToken(token);
-            } catch {
-              // Skip malformed JSON lines
+          if (token) {
+            if (!startedGenerating) {
+              startedGenerating = true;
+              sendStatus("Generating response...");
             }
+            fullResponse += token;
+            sendToken(token);
           }
         }
-
-        // Clean up any remaining think tags from the full response
-        fullResponse = fullResponse.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
 
         // 7. Build citations
         const citations = relevantChunks.map(chunk => ({
@@ -245,8 +232,10 @@ export async function POST(request) {
       } catch (error) {
         console.error("Chat Stream Error:", error.message);
 
-        if (error.message.includes("Ollama") || error.message.includes("ECONNREFUSED") || error.message.includes("fetch failed")) {
-          sendError("AI service is not available. Please make sure Ollama is running (ollama serve).");
+        if (error.status === 429) {
+          sendError("The AI is currently receiving too many requests. Please try again in a moment.");
+        } else if (error.status === 401 || error.message?.includes("API key")) {
+          sendError("AI service configuration error. Please check your GROQ_API_KEY and GEMINI_API_KEY.");
         } else {
           sendError(error.message);
         }

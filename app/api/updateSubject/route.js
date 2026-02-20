@@ -36,7 +36,7 @@ const addDocument = async (supabase, file, chapterId, subjectID) => {
 
   // Process PDF for RAG (non-blocking)
   try {
-    await processPdfForRag(supabase, buffer, resourceData.resource_id);
+    await processPdfForRag(supabase, buffer, resourceData.resource_id, file.name);
   } catch (ragError) {
     console.warn("RAG processing skipped:", ragError.message);
   }

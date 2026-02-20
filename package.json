@@ -9,8 +9,12 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@huggingface/transformers": "^3.8.1",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.87.1",
+    "grok-sdk": "0.0.1-security",
+    "groq-sdk": "^0.37.0",
     "next": "16.0.8",
     "pdf-parse": "^1.1.1",
     "react": "19.2.1",
@@ -18,11 +22,13 @@
     "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^16.1.0",
     "react-toastify": "^11.0.5",
+    "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
     "tailwindcss": "^4.1.18"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@tailwindcss/typography": "^0.5.19",
     "eslint": "^9",
     "eslint-config-next": "16.0.8"
   }
