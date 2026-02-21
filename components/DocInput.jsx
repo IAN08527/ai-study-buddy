@@ -20,8 +20,9 @@ const DocInput = ({ Notes, onUpdate, existingFiles = [] }) => {
           name: file.name,
           reason: "Not a PDF",
         });
-        toast.error(`${file.name} is not a PDF`)
+        toast.error(`${file.name} is not a PDF. Please upload documents in PDF format only.`)
       }
+
     });
 
     return results.valid;

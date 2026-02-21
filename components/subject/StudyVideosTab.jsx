@@ -136,8 +136,9 @@ const StudyVideosTab = ({
         [resourceId]: data.videos || [],
       }));
     } catch (error) {
-      toast.error("Could not load playlist videos");
+      toast.error("Could not load playlist videos. Please check your connection or try again later.");
       console.error(error);
+
     } finally {
       setLoadingPlaylist(null);
     }
@@ -146,13 +147,15 @@ const StudyVideosTab = ({
   // ── Add Video ──────────────────────────────────────────
   const handleAddVideo = async () => {
     if (!addFormData.link.trim()) {
-      toast.error("Please enter a YouTube URL");
+      toast.error("Please enter a YouTube URL to add a video.");
       return;
     }
+
     if (!isValidYoutubeUrl(addFormData.link.trim())) {
-      toast.error("Please enter a valid YouTube URL");
+      toast.error("Please enter a valid YouTube URL (e.g., https://youtube.com/watch?v=...)");
       return;
     }
+
 
     setIsAdding(true);
     try {
@@ -174,8 +177,9 @@ const StudyVideosTab = ({
       setShowAddForm(false);
       if (onVideoAdded) onVideoAdded();
     } catch (error) {
-      toast.error(error.message);
+      toast.error(`${error.message}. Please check the link and try again.`);
     } finally {
+
       setIsAdding(false);
     }
   };

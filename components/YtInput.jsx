@@ -28,8 +28,9 @@ const YtInput = ({ YTLink, onUpdate }) => {
       newList[index] = { ...newList[index], [field]: value };
       handleChange(newList);
     } else {
-      toast.error(`${value} is not a youtube link`);
+      toast.error(`${value} is not a valid YouTube link. Please use a standard watch or playlist URL.`);
     }
+
   };
 
   const isLinkValid = (link) => {

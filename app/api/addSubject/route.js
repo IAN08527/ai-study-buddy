@@ -2,9 +2,13 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { processPdfForRag } from "@/lib/pdfProcessor";
 
+// Helper for streaming
+function sendProgress(controller, encoder, data) {
+  controller.enqueue(encoder.encode(JSON.stringify(data) + "\n"));
+}
+
 // 1. Helper to upload binary to Storage and record in Database
-const addDocument = async (supabase, file, chapterId, subjectID) => {
-  // Convert File to Buffer for server-side processing
+const addDocument = async (supabase, file, chapterId, subjectID, onProgress) => {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
@@ -18,8 +22,7 @@ const addDocument = async (supabase, file, chapterId, subjectID) => {
       duplex: "half",
     });
 
-  if (uploadError)
-    throw new Error(`Storage upload failed: ${uploadError.message}`);
+  if (uploadError) throw new Error(`Storage upload failed: ${uploadError.message}`);
 
   // Insert link into Resources table
   const { data: resourceData, error: resourceEntryError } = await supabase
@@ -38,15 +41,15 @@ const addDocument = async (supabase, file, chapterId, subjectID) => {
 
   if (resourceEntryError) throw resourceEntryError;
 
-  // Process PDF for RAG (non-blocking: don't fail subject creation if Ollama is down)
+  // Process PDF for RAG
   try {
-    await processPdfForRag(supabase, buffer, resourceData.resource_id, file.name);
+    await processPdfForRag(supabase, buffer, resourceData.resource_id, file.name, onProgress);
+    return { title: file.name, status: "success" };
   } catch (ragError) {
-    console.warn("RAG processing skipped:", ragError.message);
+    return { title: file.name, status: "partial", reason: ragError.message };
   }
 };
 
-// 2. Helper to save YouTube links
 const addYoutubeLink = async (supabase, linkObject, chapterId, subjectID) => {
   const { error } = await supabase.from("Resources").insert([
     {
@@ -57,17 +60,10 @@ const addYoutubeLink = async (supabase, linkObject, chapterId, subjectID) => {
       subject_id: subjectID,
     },
   ]);
-
   if (error) throw new Error("Failed to save Youtube link");
 };
 
-const addChapter = async (
-  supabase,
-  chapterDetails,
-  subjectID,
-  userID,
-  chapterIndex
-) => {
+const addChapter = async (supabase, chapterDetails, subjectID, userID, chapterIndex, onProgress) => {
   const { data, error } = await supabase
     .from("Chapter")
     .insert([
@@ -80,122 +76,104 @@ const addChapter = async (
     ])
     .select();
 
-  if (error) {
-    console.error("Insert Error:", error.message);
-    return;
-  }
+  if (error) throw error;
 
   const chapterID = data[0].chapter_id;
+  const results = [];
 
-  // Upload all the documents of the subject
   for (const file of chapterDetails.cNotes) {
-    await addDocument(supabase, file, chapterID, subjectID);
+    const res = await addDocument(supabase, file, chapterID, subjectID, onProgress);
+    results.push(res);
   }
 
-  // Upload all the Youtube videos of the subjects
   for (const linkObject of chapterDetails.cYoutubeLink) {
-    if (linkObject.link == "") {
-      continue;
-    } else {
+    if (linkObject.link !== "") {
       await addYoutubeLink(supabase, linkObject, chapterID, subjectID);
     }
   }
 
-  if (error) throw new Error("Failed to create Chapter");
+  return results;
 };
 
-// 3. Main function to create Subject and trigger uploads
-const addsubjectToDB = async (subjectData, id, supabase) => {
-  const { data, error } = await supabase
-    .from("Subject")
-    .insert([
-      {
-        user_id: id,
-        name: subjectData.FinalSubjectInfo.globalInfo.sName,
-      },
-    ])
-    .select(); // Essential to get the new subject ID back
-
-  if (error) throw error;
-
-  // IMPORTANT: Supabase usually returns 'id'. Check if your column is named 'id' or 'subject_id'
-  const newSubjectId = data[0].subject_id;
-
-  /// UPLOADING GLOBAL INFO
-  // Uploading Syllabus (MUST AWAIT THESE)
-  for (const file of subjectData.FinalSubjectInfo.globalInfo.sSyllabus) {
-    await addDocument(supabase, file, null, newSubjectId);
-  }
-  // Uploading YouTube Links (MUST AWAIT THESE)
-  for (const linkObject of subjectData.FinalSubjectInfo.globalInfo.sYTVideos) {
-    if (linkObject.link == "") {
-      continue;
-    } else {
-      await addYoutubeLink(supabase, linkObject, null, newSubjectId);
-    }
-  }
-
-  /// UPLOADING CHAPTERWISE INFO
-  let chapterIndex = 1;
-  for (const chapter of subjectData.FinalSubjectInfo.subjectinfo) {
-    await addChapter(supabase, chapter, newSubjectId, id, chapterIndex);
-    chapterIndex++;
-  }
-};
-
-/// The actual POST request
 export async function POST(request) {
-  // 1. VALIDATE SESSION
   const supabase = await createClient();
-  const {
-    data: { session },
-    error: authError,
-  } = await supabase.auth.getSession();
+  const { data: { session }, error: authError } = await supabase.auth.getSession();
 
-  // Check if session exists or if there's an auth error
   if (authError || !session) {
-    return NextResponse.json(
-      { error: "Unauthorized: Please log in to perform this action." },
-      { status: 401 }
-    );
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  try {
-    const formData = await request.formData();
-    const metadataString = formData.get("metadata");
-    const id = formData.get("id");
+  const encoder = new TextEncoder();
+  
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        const formData = await request.formData();
+        const metadataString = formData.get("metadata");
+        const id = formData.get("id");
 
-    if (!metadataString) throw new Error("Metadata is missing");
+        if (!metadataString) throw new Error("Metadata is missing");
+        const subjectData = JSON.parse(metadataString);
 
-    // 1. Parse the text structure
-    const subjectData = JSON.parse(metadataString);
+        // Re-attach binary files
+        const syllabusFiles = formData.getAll("syllabus_files");
+        subjectData.FinalSubjectInfo.globalInfo.sSyllabus = syllabusFiles;
+        
+        subjectData.FinalSubjectInfo.subjectinfo.forEach((chapter, index) => {
+          chapter.cNotes = formData.getAll(`chapter_${index}_files`);
+        });
 
-    // 2. RE-ATTACH BINARY FILES TO THE DEEP PATH
-    // This is where the 'undefined' error usually starts
-    const realFiles = formData.getAll("syllabus_files");
-    const chapters = subjectData.FinalSubjectInfo.subjectinfo;
-    chapters.forEach((chapter, index) => {
-      // Look for the specific key you appended on the frontend: "chapter_N_files"
-      const chapterFiles = formData.getAll(`chapter_${index}_files`);
-      chapter.cNotes = chapterFiles;
-    });
+        sendProgress(controller, encoder, { type: "status", message: "Creating subject..." });
 
-    // Safety check: ensure the path exists before assigning
-    if (subjectData?.FinalSubjectInfo?.globalInfo) {
-      subjectData.FinalSubjectInfo.globalInfo.sSyllabus = realFiles;
-    } else {
-      throw new Error("Invalid metadata structure received");
+        const { data: subData, error: subError } = await supabase
+          .from("Subject")
+          .insert([{ user_id: id, name: subjectData.FinalSubjectInfo.globalInfo.sName }])
+          .select()
+          .single();
+
+        if (subError) throw subError;
+        const newSubjectId = subData.subject_id;
+        const ragStatus = [];
+
+        const onProgress = (prog) => sendProgress(controller, encoder, prog);
+
+        // Upload Syllabus
+        for (const file of subjectData.FinalSubjectInfo.globalInfo.sSyllabus) {
+          sendProgress(controller, encoder, { type: "status", message: `Processing ${file.name}...` });
+          const res = await addDocument(supabase, file, null, newSubjectId, onProgress);
+          ragStatus.push(res);
+        }
+
+        // YouTube
+        for (const linkObject of subjectData.FinalSubjectInfo.globalInfo.sYTVideos) {
+          if (linkObject.link !== "") await addYoutubeLink(supabase, linkObject, null, newSubjectId);
+        }
+
+        // Chapters
+        let chapterIndex = 1;
+        for (const chapter of subjectData.FinalSubjectInfo.subjectinfo) {
+          sendProgress(controller, encoder, { type: "status", message: `Creating Chapter: ${chapter.cName}...` });
+          const results = await addChapter(supabase, chapter, newSubjectId, id, chapterIndex, onProgress);
+          ragStatus.push(...results);
+          chapterIndex++;
+        }
+
+        const failedCount = ragStatus.filter(s => s.status !== "success").length;
+        sendProgress(controller, encoder, {
+          type: "done",
+          message: `${subjectData.FinalSubjectInfo.globalInfo.sName} created successfully!`,
+          warning: failedCount > 0 ? `${failedCount} document(s) failed vector processing.` : null
+        });
+
+        controller.close();
+      } catch (err) {
+        sendProgress(controller, encoder, { type: "error", error: err.message });
+        controller.close();
+      }
     }
+  });
 
-
-    // 3. Call the DB function with the correctly formatted object
-    await addsubjectToDB(subjectData, id, supabase);
-
-    return NextResponse.json({
-      message: `${subjectData.FinalSubjectInfo.globalInfo.sName} created sucessfully !!!`,
-    });
-  } catch (err) {
-    console.error("Critical Server Error:", err.message);
-    return NextResponse.json({ error: err.message }, { status: 500 });
-  }
+  return new Response(stream, {
+    headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" }
+  });
 }

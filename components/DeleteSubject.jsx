@@ -3,28 +3,31 @@ import { toast } from "react-toastify";
 
 const DeleteSubject = ({ removeDialog ,refreshFunction ,subjectID , subjectName}) => {
 
-  const deleteSubject = async(subjectID) => {
-    if(subjectID != null){
-      const response = await fetch(`/api/deleteSubject/${subjectID}`,{
+  const deleteSubject = async (subjectID) => {
+    if (subjectID != null) {
+      const response = await fetch(`/api/deleteSubject/${subjectID}`, {
         method: "DELETE",
         headers: {
-          'Content-Type' : 'application/json'
-        }
-      })
-      const result = await response.json()
+          "Content-Type": "application/json",
+        },
+      });
+      const result = await response.json();
 
-      if(response.ok){
-        toast.success(result.message)
-        refreshFunction()
+      if (response.ok) {
+        toast.success(result.message);
+        refreshFunction();
         // Trigger global update for sidebar
         window.dispatchEvent(new Event("subjectUpdated"));
-        removeDialog()
-      }else{
-        toast.error(result.message)
-        removeDialog()
+        removeDialog();
+      } else {
+        toast.error(
+          `${result.message}. Please try again or refresh your dashboard.`
+        );
+        removeDialog();
       }
     }
   };
+
 
   return (
     <div className="absolute w-full h-full bg-black/80 backdrop-blur-sm overflow-hidden flex justify-center items-center z-50 animate-fade-in">

@@ -31,8 +31,9 @@ const SubjectPage = ({ subjectId }) => {
     } catch (error) {
       console.error("Failed to fetch subject details:", error);
       setFetchError(error.message);
-      toast.error(error.message);
+      toast.error(`${error.message}. Please try refreshing the page or head back to the dashboard.`);
     } finally {
+
       if (showLoading) setIsLoading(false);
     }
   };

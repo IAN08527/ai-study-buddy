@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "react-toastify";
 
-const LoginForm = ({ handleSubmit }) => {
+const LoginForm = ({ handleSubmit, isLoading }) => {
   const email = useRef(null);
   const password = useRef(null);
 
@@ -20,6 +20,7 @@ const LoginForm = ({ handleSubmit }) => {
         id="email"
         ref={email}
         placeholder="your.email@example.com"
+        disabled={isLoading}
       />
       <span className="font-medium mb-2">Password</span>
       <input
@@ -29,21 +30,24 @@ const LoginForm = ({ handleSubmit }) => {
         id="password"
         ref={password}
         placeholder="********"
+        disabled={isLoading}
       />
       <button
-        className="bg-white text-black font-medium h-13 rounded-xl mt-5"
+        disabled={isLoading}
+        className={`bg-white text-black font-medium h-13 rounded-xl mt-5 flex items-center justify-center gap-2 transition-opacity ${isLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-zinc-200"}`}
         onClick={(e) => {
           e.preventDefault();
           handleSubmit(e, email.current.value, password.current.value);
         }}
       >
-        Login
+        {isLoading && <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />}
+        {isLoading ? "Logging in..." : "Login"}
       </button>
     </form>
   );
 };
 
-const SignupForm = ({ handleSubmit }) => {
+const SignupForm = ({ handleSubmit, isLoading }) => {
   const [passwordError, setPasswordError] = useState(null);
   const email = useRef(null);
   const password = useRef(null);
@@ -55,11 +59,12 @@ const SignupForm = ({ handleSubmit }) => {
       <span className="font-medium mb-2">Your Name</span>
       <input
         className="w-full p-2 rounded-md bg-brand-bg mb-4 border border-brand-border focus:border-sky-500 focus:outline-none transition-colors"
-        type="email"
-        name="email"
-        id="email"
+        type="text"
+        name="name"
+        id="name"
         ref={userName}
         placeholder="E.g. John Snow"
+        disabled={isLoading}
       />
       <span className="font-medium mb-2">Email</span>
       <input
@@ -69,6 +74,7 @@ const SignupForm = ({ handleSubmit }) => {
         id="email"
         ref={email}
         placeholder="your.email@example.com"
+        disabled={isLoading}
       />
       <span className="font-medium mb-2">Password</span>
       <input
@@ -78,6 +84,7 @@ const SignupForm = ({ handleSubmit }) => {
         id="password"
         ref={password}
         placeholder="********"
+        disabled={isLoading}
       />
       <span className="font-medium mb-2">Confirm Password</span>
       <input
@@ -87,10 +94,12 @@ const SignupForm = ({ handleSubmit }) => {
         id="conPassword"
         ref={confirmPassword}
         placeholder="********"
+        disabled={isLoading}
       />
       <button
         type="submit"
-        className="bg-white text-black font-medium h-13 rounded-xl mt-5"
+        disabled={isLoading}
+        className={`bg-white text-black font-medium h-13 rounded-xl mt-5 flex items-center justify-center gap-2 transition-opacity ${isLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-zinc-200"}`}
         onClick={(e) => {
           e.preventDefault();
           if (password.current.value == confirmPassword.current.value) {
@@ -108,8 +117,10 @@ const SignupForm = ({ handleSubmit }) => {
           }
         }}
       >
-        Sign Up
+        {isLoading && <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />}
+        {isLoading ? "Signing up..." : "Sign Up"}
       </button>
+
 
       {passwordError === null ? (
         ""
@@ -126,6 +137,8 @@ const SignInPage = () => {
   const router = useRouter();
   const supabase = createClient();
   const [isLoginState, setisLoginState] = useState(true);
+
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     checkForPreviousLogin()
@@ -144,6 +157,7 @@ const SignInPage = () => {
 
   const handleSubmit = async (e, email, password, name) => {
     e.preventDefault();
+    setIsLoading(true);
     const { data, error } =
       isLoginState === true
         ? await supabase.auth.signInWithPassword({ email, password })
@@ -156,24 +170,12 @@ const SignInPage = () => {
               },
             },
           });
-    const UserID = data.user?.id;
+    const UserID = data?.user?.id;
     if (error == null) {
       if (isLoginState == false) {
-        const { data, error } = await supabase
-          .from("User")
-          .insert([
-            {
-              user_id: UserID,
-              email: email,
-              name: name,
-            },
-          ])
-          .select();
-        if (error) {
-          toast.error(error.message);
-        }else{
-          toast.success("Email Registered !!! Please Sign in")
-        }
+        // [MODIFIED] Profile creation is now handled by the Supabase Database Trigger
+        // derived from auth.users. This avoids RLS violations on signup.
+        toast.success("Account created! Please check your email to confirm.");
       } else {
         const { data, error } = await supabase
           .from("User")
@@ -181,16 +183,20 @@ const SignInPage = () => {
           .eq("email", email)
           .single();
         if (error) {
-          toast.error(error.message);
+          toast.error(`${error.message}. Please verify your credentials or try again later.`);
         } else {
+
           router.push(`/welcomeMessage`);
         }
       }
     } else {
       console.log(error.message);
-      toast.error(error.message);
+      toast.error(`${error.message}. Please check your connection or try a different email.`);
     }
+
+    setIsLoading(false);
   };
+
 
   return (
     <div className="contianer p-8 w-96 max-w-[90vw] bg-brand-card rounded-xl text-brand-text-primary flex flex-col items-center shadow-2xl border border-brand-border animate-fade-in">
@@ -225,10 +231,11 @@ const SignInPage = () => {
       </div>
 
       {isLoginState == true ? (
-        <LoginForm handleSubmit={handleSubmit} />
+        <LoginForm handleSubmit={handleSubmit} isLoading={isLoading} />
       ) : (
-        <SignupForm handleSubmit={handleSubmit} />
+        <SignupForm handleSubmit={handleSubmit} isLoading={isLoading} />
       )}
+
     </div>
   );
 };

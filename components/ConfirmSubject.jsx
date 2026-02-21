@@ -8,7 +8,10 @@ const ConfirmSubject = ({
   onCancel,
   onConfirm,
   isEditMode,
+  isLoading,
+  progress, // New prop for progress tracking
 }) => {
+
   return (
     <div className="absolute w-full h-full bg-black/80 backdrop-blur-sm overflow-hidden flex justify-center items-center z-[60] animate-fade-in">
       <div className="bg-brand-card p-8 rounded-2xl border border-brand-border shadow-2xl max-w-md w-full">
@@ -38,19 +41,57 @@ const ConfirmSubject = ({
           </div>
         </div>
 
+        {isLoading && (
+          <div className="mb-6 animate-fade-in">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm font-medium text-brand-text-primary">
+                {progress?.type === "progress" 
+                  ? `Encoding: ${progress.title}` 
+                  : (progress?.message || "Preparing files...")}
+              </span>
+              {progress?.type === "progress" && (
+                <span className="text-xs text-brand-text-secondary">
+                  {Math.round((progress.current / progress.total) * 100)}%
+                </span>
+              )}
+            </div>
+            
+            <div className="w-full bg-zinc-800 rounded-full h-2.5 overflow-hidden">
+              <div 
+                className="bg-white h-full transition-all duration-300 ease-out"
+                style={{ 
+                  width: progress?.type === "progress" 
+                    ? `${(progress.current / progress.total) * 100}%` 
+                    : (progress?.message ? "100%" : "10%") 
+                }}
+              />
+            </div>
+            
+            {progress?.type === "progress" && (
+              <p className="text-[10px] text-brand-text-secondary mt-1 text-right">
+                Chunk {progress.current} of {progress.total}
+              </p>
+            )}
+          </div>
+        )}
+
         <div className="flex justify-end gap-4">
           <button
             onClick={onCancel}
-            className="px-6 py-2 rounded-lg text-brand-text-primary hover:bg-zinc-800 transition-colors"
+            disabled={isLoading}
+            className={`px-6 py-2 rounded-lg text-brand-text-primary hover:bg-zinc-800 transition-colors ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
-            className="px-6 py-2 rounded-lg bg-white text-black font-bold hover:bg-zinc-200 transition-colors"
+            disabled={isLoading}
+            className={`px-6 py-2 rounded-lg bg-white text-black font-bold hover:bg-zinc-200 transition-colors flex items-center gap-2 ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
           >
-            {isEditMode ? "Update" : "Create"}
+            {isLoading && <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />}
+            {isLoading ? (isEditMode ? "Updating..." : "Creating...") : (isEditMode ? "Update" : "Create")}
           </button>
+
         </div>
       </div>
     </div>

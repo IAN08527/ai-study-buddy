@@ -68,6 +68,9 @@ const SubjectForm = ({ id, subDetails, removeSubjectForm, refreshFunction }) => 
   const [showConfirm, setShowConfirm] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [creationProgress, setCreationProgress] = useState(null);
+
 
   // Initialize form for Edit Mode
   useEffect(() => {
@@ -103,12 +106,14 @@ const SubjectForm = ({ id, subDetails, removeSubjectForm, refreshFunction }) => 
                   setSubjectDetails(mappedChapters);
               }
           } else {
-              toast.error("Failed to load subject details");
+              toast.error("Failed to load subject details. Please refresh the page or check your connection.");
           }
+
       } catch (error) {
           console.error(error);
-          toast.error("Error fetching details");
+          toast.error("Error fetching subject details. Try refreshing the dashboard.");
       } finally {
+
           setIsLoading(false);
       }
   }
@@ -150,7 +155,9 @@ const SubjectForm = ({ id, subDetails, removeSubjectForm, refreshFunction }) => 
 
   // ... (processSubmission remains largely the same, maybe updated for clarity)
   const processSubmission = async () => {
+    setIsSubmitting(true);
     const formData = new FormData();
+
     const endpoint = isEditMode ? "/api/updateSubject" : "/api/addSubject";
     const method = isEditMode ? "PUT" : "POST";
 
@@ -189,27 +196,62 @@ const SubjectForm = ({ id, subDetails, removeSubjectForm, refreshFunction }) => 
     });
 
     try {
+      setCreationProgress({ type: "status", message: "Connecting to server..." });
       const response = await fetch(endpoint, {
         method: method,
         body: formData,
       });
 
-      const result = await response.json();
-      if (response.ok) {
-        toast.success(result.message);
-        refreshFunction();
-        window.dispatchEvent(new Event("subjectUpdated"));
-        removeSubjectForm();
-      } else {
-        toast.error(result.error);
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || "Server error");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextEncoder().constructor === TextEncoder ? new TextDecoder() : { decode: (v) => v }; // Safety check for environment
+      const realDecoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += realDecoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const event = JSON.parse(line);
+            if (event.type === "status" || event.type === "progress" || event.type === "start") {
+              setCreationProgress(event);
+            } else if (event.type === "done") {
+              toast.success(event.message);
+              if (event.warning) {
+                toast.warning(event.warning, { autoClose: 10000 });
+              }
+              refreshFunction();
+              window.dispatchEvent(new Event("subjectUpdated"));
+              removeSubjectForm();
+            } else if (event.type === "error") {
+              throw new Error(event.error);
+            }
+          } catch (e) {
+            // Partial JSON or unexpected format
+          }
+        }
       }
     } catch (error) {
       console.error(error);
-      toast.error("An unexpected error occurred.");
+      toast.error(`${error.message || "An unexpected error occurred"}. Please check your inputs and try again.`);
     } finally {
-        setShowConfirm(false);
+      setIsSubmitting(false);
+      setCreationProgress(null);
+      if (!isSubmitting) setShowConfirm(false); // Only close if we didn't already finish successfully
     }
   };
+
 
   if (isLoading) {
       return (
@@ -230,7 +272,10 @@ const SubjectForm = ({ id, subDetails, removeSubjectForm, refreshFunction }) => 
           onCancel={() => setShowConfirm(false)}
           onConfirm={processSubmission}
           isEditMode={isEditMode}
+          isLoading={isSubmitting}
+          progress={creationProgress}
         />
+
       )}
       
       <div className="absolute w-full h-full bg-black/50 backdrop-blur-sm overflow-hidden flex justify-center items-center z-50">

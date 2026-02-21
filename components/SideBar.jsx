@@ -25,13 +25,18 @@ const SideBar = () => {
 
     // Listen for updates from other components
     const handleSubjectUpdate = () => fetchSubjects();
+    const handleSidebarToggle = () => handleCollapse();
+    
     window.addEventListener("subjectUpdated", handleSubjectUpdate);
+    window.addEventListener("toggleSidebar", handleSidebarToggle);
 
     return () => {
       window.removeEventListener("resize", handleResize);
       window.removeEventListener("subjectUpdated", handleSubjectUpdate);
+      window.removeEventListener("toggleSidebar", handleSidebarToggle);
     };
-  }, []);
+  }, [sidebarClosed]); // Re-bind with current state
+
 
   const fetchSubjects = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -71,9 +76,17 @@ const SideBar = () => {
   return (
     <aside
       className={`border-r border-brand-border h-screen ${
-        sidebarClosed ? (isMobile ? "w-0 border-none" : "w-20") : "w-[240px]"
-      } bg-brand-card text-brand-text-primary flex flex-col items-center transition-all duration-300 z-50 ${isMobile ? "absolute left-0 top-0 shadow-2xl" : "relative"}`}
+        sidebarClosed ? (isMobile ? "w-0 border-none -translate-x-full" : "w-20") : "w-[240px] translate-x-0"
+      } bg-brand-card text-brand-text-primary flex flex-col items-center transition-all duration-300 z-50 ${isMobile ? "fixed left-0 top-0 shadow-2xl" : "relative"}`}
     >
+      {/* Mobile Backdrop */}
+      {isMobile && !sidebarClosed && (
+        <div 
+            className="fixed inset-0 bg-black/50 z-[-1]" 
+            onClick={handleCollapse}
+        />
+      )}
+
       <span className="w-full h-[7vh] flex items-center px-4 text-md justify-between mt-2 whitespace-nowrap overflow-hidden">
         <span className={`${sidebarClosed ? "opacity-0 hidden" : "opacity-100 flex"} font-bold transition-opacity duration-300`}>
             AI Study Buddy

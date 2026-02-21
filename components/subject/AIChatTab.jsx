@@ -150,24 +150,30 @@ const AIChatTab = ({ subjectName, subjectId, allPdfs }) => {
   const [selectedPdfs, setSelectedPdfs] = useState([]);
   const [showMentions, setShowMentions] = useState(false);
   const [mentionFilter, setMentionFilter] = useState("");
-  
-  // Conversations states
+  const debounceTimer = useRef(null);
+
   const [conversations, setConversations] = useState([]);
+
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isConversationsLoading, setIsConversationsLoading] = useState(true);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [editingConvId, setEditingConvId] = useState(null);
   const [editTitle, setEditTitle] = useState("");
+  const [isCreatingConversation, setIsCreatingConversation] = useState(false);
 
   const messagesEndRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const textareaRef = useRef(null);
   const isAtBottom = useRef(true);
+  const hasInitialized = useRef(false);
 
   // Fetch conversations on mount
   useEffect(() => {
     const fetchConversations = async () => {
+      if (hasInitialized.current) return;
+      hasInitialized.current = true;
+
       try {
         const res = await fetch(`/api/conversations/${subjectId}`);
         if (res.ok) {
@@ -181,6 +187,7 @@ const AIChatTab = ({ subjectName, subjectId, allPdfs }) => {
         }
       } catch (err) {
         console.error("Failed to fetch conversations", err);
+        hasInitialized.current = false; // Reset on error to allow retry
       } finally {
         setIsConversationsLoading(false);
       }
@@ -216,22 +223,29 @@ const AIChatTab = ({ subjectName, subjectId, allPdfs }) => {
   }, [activeConversationId]);
 
   const handleNewConversation = async () => {
+    if (isCreatingConversation) return;
+    setIsCreatingConversation(true);
     try {
       const res = await fetch(`/api/conversations/${subjectId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: "New Conversation" })
+        body: JSON.stringify({ title: "New Conversation" }),
       });
       if (res.ok) {
         const data = await res.json();
-        setConversations(prev => [data.conversation, ...prev]);
+        setConversations((prev) => [data.conversation, ...prev]);
         setActiveConversationId(data.conversation.conversation_id);
         if (window.innerWidth < 768) setIsSidebarOpen(false); // Auto close on mobile
       }
     } catch (err) {
-      toast.error("Failed to create new chat");
+      toast.error(
+        "Failed to create a new chat. Please check your internet connection or try refreshing the page."
+      );
+    } finally {
+      setIsCreatingConversation(false);
     }
   };
+
 
   const handleRename = async (id) => {
     if (!editTitle.trim()) { setEditingConvId(null); return; }
@@ -246,8 +260,9 @@ const AIChatTab = ({ subjectName, subjectId, allPdfs }) => {
         toast.success("Renamed successfully");
       }
     } catch {
-      toast.error("Failed to rename");
+      toast.error("Failed to rename the conversation. Try using a shorter title or check your connection.");
     } finally {
+
       setEditingConvId(null);
     }
   };
@@ -267,8 +282,9 @@ const AIChatTab = ({ subjectName, subjectId, allPdfs }) => {
         toast.success("Conversation deleted");
       }
     } catch {
-      toast.error("Failed to delete conversation");
+      toast.error("Failed to delete the conversation. Please refresh the page and try again.");
     }
+
   };
 
   const scrollToBottom = useCallback((smooth = true) => {
@@ -277,13 +293,20 @@ const AIChatTab = ({ subjectName, subjectId, allPdfs }) => {
     }
   }, []);
 
+  const scrollTimeout = useRef(null);
   const handleScroll = () => {
-    if (scrollContainerRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
-      const atBottom = scrollHeight - scrollTop - clientHeight < 100;
-      isAtBottom.current = atBottom;
-    }
+    if (scrollTimeout.current) return;
+    
+    scrollTimeout.current = setTimeout(() => {
+      if (scrollContainerRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+        const atBottom = scrollHeight - scrollTop - clientHeight < 150;
+        isAtBottom.current = atBottom;
+      }
+      scrollTimeout.current = null;
+    }, 100);
   };
+
 
   useEffect(() => {
     if (isAtBottom.current) {
@@ -439,8 +462,9 @@ const AIChatTab = ({ subjectName, subjectId, allPdfs }) => {
       if (error.message.includes("too many requests") || error.message.includes("429")) {
         toast.error("AI service is busy (Rate Limit). Please wait a few seconds.");
       } else {
-        toast.error(error.message);
+        toast.error(`${error.message}. Please wait a moment or try a different question.`);
       }
+
       
       setMessages((prev) => [
         ...prev,
@@ -468,13 +492,17 @@ const AIChatTab = ({ subjectName, subjectId, allPdfs }) => {
     if (lastAt !== -1) {
       const after = val.slice(lastAt + 1);
       if (!after.includes(" ") || after.length === 0) {
-        setShowMentions(true);
-        setMentionFilter(after);
+        if (debounceTimer.current) clearTimeout(debounceTimer.current);
+        debounceTimer.current = setTimeout(() => {
+          setShowMentions(true);
+          setMentionFilter(after);
+        }, 150);
         return;
       }
     }
     setShowMentions(false);
   };
+
 
   const handleMentionSelect = (pdf) => {
     if (!selectedPdfs.find((p) => p.resource_id === pdf.resource_id)) {
@@ -492,10 +520,15 @@ const AIChatTab = ({ subjectName, subjectId, allPdfs }) => {
 
       <div className={`chat-sidebar ${isSidebarOpen ? "" : "chat-sidebar--hidden"}`}>
         <div className="chat-sidebar-header">
-          <span className="chat-sidebar-title">Conversations</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <button className="chat-sidebar-close-btn" onClick={() => setIsSidebarOpen(false)} title="Close Sidebar">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <span className="chat-sidebar-title">Conversations</span>
+          </div>
           <button className="chat-new-btn" onClick={handleNewConversation} title="Start a new conversation">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            New Chat
+            <span className="chat-new-btn-text">New Chat</span>
           </button>
         </div>
         <div className="chat-sidebar-list custom-scrollbar">
@@ -565,7 +598,7 @@ const AIChatTab = ({ subjectName, subjectId, allPdfs }) => {
               title="Toggle Conversations Sidebar"
               style={{ background: "rgba(255,255,255,0.05)", padding: "6px", borderRadius: "6px" }}
             >
-               <svg style={{transform: isSidebarOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', display: 'block'}} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+               <svg style={{transform: isSidebarOpen ? 'rotate(0deg)' : 'rotate(180deg)', transition: 'transform 0.2s', display: 'block'}} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
             </button>
             <span className="chat-header-title">AI Study Buddy</span>
           </div>
@@ -574,11 +607,16 @@ const AIChatTab = ({ subjectName, subjectId, allPdfs }) => {
              {!isSidebarOpen && (
                 <button className="chat-new-btn" onClick={handleNewConversation} title="Start a new chat">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    New Chat
+                    <span className="chat-new-btn-text">New Chat</span>
                 </button>
              )}
           </div>
         </div>
+
+        {/* Backdrop for mobile */}
+        {isSidebarOpen && (
+          <div className="chat-sidebar-backdrop" onClick={() => setIsSidebarOpen(false)} />
+        )}
 
         <div 
           className="chat-messages custom-scrollbar" 
