@@ -24,7 +24,8 @@ CONTENT RULES:
 2. If the context doesn't contain enough information, you may supplement with your general knowledge but clearly indicate: "Based on general knowledge: ..."
 3. If the student's documents contradict widely accepted facts, PRIORITIZE the document content and note the discrepancy.
 4. Be concise but thorough.
-5. If you don't know something and it's not in the context, say so honestly.`;
+5. If you don't know something and it's not in the context, say so honestly.
+6. When using previous conversation context, extract only the key information and facts. DO NOT get influenced by the formatting, style, or specific wording of previous AI outputs.`;
 
 export async function POST(request) {
   const supabase = await createClient();
@@ -40,19 +41,20 @@ export async function POST(request) {
     );
   }
 
-  let query, subjectId, resourceIds;
+  let query, subjectId, resourceIds, conversationId;
   try {
     const body = await request.json();
     query = body.query;
     subjectId = body.subjectId;
     resourceIds = body.resourceIds;
+    conversationId = body.conversationId;
     // We explicitly ignore `clientEmbedding` now since we run it directly against HF API
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  if (!query || !subjectId) {
-    return NextResponse.json({ error: "Query and subjectId are required" }, { status: 400 });
+  if (!query || !subjectId || !conversationId) {
+    return NextResponse.json({ error: "Query, subjectId, and conversationId are required" }, { status: 400 });
   }
 
   // Create a streaming response
@@ -100,7 +102,7 @@ export async function POST(request) {
         const { data: history } = await supabase
           .from("Chat_history")
           .select("message_role, message_text")
-          .eq("subject_id", subjectId)
+          .eq("conversation_id", conversationId)
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .limit(10);
@@ -229,8 +231,8 @@ export async function POST(request) {
         const { error: historyError } = await supabase
           .from("Chat_history")
           .insert([
-            { user_id: user.id, subject_id: subjectId, message_role: "user", message_text: query },
-            { user_id: user.id, subject_id: subjectId, message_role: "assistant", message_text: fullResponse },
+            { user_id: user.id, subject_id: subjectId, conversation_id: conversationId, message_role: "user", message_text: query },
+            { user_id: user.id, subject_id: subjectId, conversation_id: conversationId, message_role: "assistant", message_text: fullResponse },
           ]);
 
         if (historyError) {

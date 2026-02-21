@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-// GET: Fetch chat history for a subject
+// GET: Fetch chat history for a conversation
 export async function GET(request, { params }) {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -11,12 +11,12 @@ export async function GET(request, { params }) {
   }
 
   try {
-    const { subjectId } = await params;
+    const { conversationId } = await params;
 
     const { data: messages, error } = await supabase
       .from("Chat_history")
       .select("chat_id, message_role, message_text, created_at")
-      .eq("subject_id", subjectId)
+      .eq("conversation_id", conversationId)
       .eq("user_id", user.id)
       .order("created_at", { ascending: true });
 
@@ -30,7 +30,7 @@ export async function GET(request, { params }) {
   }
 }
 
-// DELETE: Clear chat history for a subject
+// DELETE: Clear chat history for a conversation
 export async function DELETE(request, { params }) {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -40,12 +40,12 @@ export async function DELETE(request, { params }) {
   }
 
   try {
-    const { subjectId } = await params;
+    const { conversationId } = await params;
 
     const { error } = await supabase
       .from("Chat_history")
       .delete()
-      .eq("subject_id", subjectId)
+      .eq("conversation_id", conversationId)
       .eq("user_id", user.id);
 
     if (error) throw error;
