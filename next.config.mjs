@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverComponentsExternalPackages: ["@huggingface/transformers"],
+  serverExternalPackages: ["@huggingface/transformers"],
 };
 
 export default nextConfig;
