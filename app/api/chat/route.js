@@ -28,19 +28,25 @@ CONTENT RULES:
 
 export async function POST(request) {
   const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const {
+    data: { session },
+    error: authError,
+  } = await supabase.auth.getSession();
 
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (authError || !session) {
+    return NextResponse.json(
+      { error: "Unauthorized: Please log in to perform this action." },
+      { status: 401 }
+    );
   }
 
-  let query, subjectId, resourceIds, clientEmbedding;
+  let query, subjectId, resourceIds;
   try {
     const body = await request.json();
     query = body.query;
     subjectId = body.subjectId;
     resourceIds = body.resourceIds;
-    clientEmbedding = body.queryEmbedding;
+    // We explicitly ignore `clientEmbedding` now since we run it directly against HF API
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
@@ -80,7 +86,7 @@ export async function POST(request) {
           .from("Subject")
           .select("subject_id")
           .eq("subject_id", subjectId)
-          .eq("user_id", user.id)
+          .eq("user_id", session.user.id)
           .single();
 
         if (subjectError || !subject) {
@@ -95,17 +101,19 @@ export async function POST(request) {
           .from("Chat_history")
           .select("message_role, message_text")
           .eq("subject_id", subjectId)
-          .eq("user_id", user.id)
+          .eq("user_id", session.user.id)
           .order("created_at", { ascending: false })
           .limit(10);
 
         const chatHistory = (history || []).reverse();
 
-        // 3. Generate query embedding (Fallback to server-side if client-side failed)
-        sendStatus("Encoding your question...");
-        const queryEmbedding = (clientEmbedding && clientEmbedding.length > 0) 
-          ? clientEmbedding 
-          : await generateEmbedding(query);
+        // 3. Generate query embedding (Directly via HF API)
+        sendStatus("Encoding your question via HF API...");
+        const queryEmbedding = await generateEmbedding(query);
+
+        if (!queryEmbedding || queryEmbedding.length === 0) {
+          throw new Error("Failed to generate embedding array from Hugging Face.");
+        }
 
         // 4. Vector similarity search
         sendStatus("Searching your documents...");
@@ -175,7 +183,7 @@ export async function POST(request) {
         const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
         const groqStream = await groq.chat.completions.create({
           messages,
-          model: 'openai/gpt-oss-120b',
+          model: 'llama-3.3-70b-versatile',
           stream: true,
         });
 
@@ -221,8 +229,8 @@ export async function POST(request) {
         const { error: historyError } = await supabase
           .from("Chat_history")
           .insert([
-            { user_id: user.id, subject_id: subjectId, message_role: "user", message_text: query },
-            { user_id: user.id, subject_id: subjectId, message_role: "assistant", message_text: fullResponse },
+            { user_id: session.user.id, subject_id: subjectId, message_role: "user", message_text: query },
+            { user_id: session.user.id, subject_id: subjectId, message_role: "assistant", message_text: fullResponse },
           ]);
 
         if (historyError) {
