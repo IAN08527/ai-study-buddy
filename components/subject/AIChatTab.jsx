@@ -7,6 +7,7 @@ import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { generateClientEmbedding } from "@/lib/transformers-client";
 
 // ── Improved Status Indicator Component ───────────────────────────
 const StatusIndicator = ({ status }) => {
@@ -22,6 +23,7 @@ const StatusIndicator = ({ status }) => {
     "Reasoning...": { icon: "🧠", color: "var(--status-green, rgb(80,200,120))" },
     "Generating response...": { icon: "✍️", color: "var(--status-green, rgb(80,200,120))" },
     "Saving conversation...": { icon: "💾", color: "var(--status-blue, rgb(100,160,255))" },
+    "Loading local AI model...": { icon: "📦", color: "var(--status-purple, rgb(180,130,255))" },
   };
 
   const config = statusMap[status] || { icon: "⏳", color: "rgb(150,150,150)" };
@@ -239,11 +241,25 @@ const AIChatTab = ({ subjectName, subjectId, allPdfs }) => {
     let messageAdded = false;
 
     try {
+      // 1. Generate Embedding Locally (Client-Side)
+      let queryEmbedding = [];
+      try {
+        setCurrentStatus("Loading local AI model...");
+        queryEmbedding = await generateClientEmbedding(cleanQuery, (p) => {
+          if (p.status === 'progress') {
+            setCurrentStatus(`Loading local AI model... ${Math.round(p.progress)}%`);
+          }
+        });
+      } catch (embedErr) {
+        console.warn("Client embedding failed, falling back to server-side:", embedErr);
+      }
+
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           query: cleanQuery,
+          queryEmbedding, // Send the locally generated embedding
           subjectId,
           resourceIds: userMessage.selectedPdfs?.map((p) => p.resource_id) || [],
         }),

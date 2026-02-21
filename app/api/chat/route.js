@@ -1,4 +1,3 @@
-export const runtime = "edge";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateEmbedding } from "@/lib/gemini";
@@ -35,12 +34,13 @@ export async function POST(request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let query, subjectId, resourceIds;
+  let query, subjectId, resourceIds, clientEmbedding;
   try {
     const body = await request.json();
     query = body.query;
     subjectId = body.subjectId;
     resourceIds = body.resourceIds;
+    clientEmbedding = body.queryEmbedding;
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
@@ -101,9 +101,11 @@ export async function POST(request) {
 
         const chatHistory = (history || []).reverse();
 
-        // 3. Generate query embedding
+        // 3. Generate query embedding (Fallback to server-side if client-side failed)
         sendStatus("Encoding your question...");
-        const queryEmbedding = await generateEmbedding(query);
+        const queryEmbedding = (clientEmbedding && clientEmbedding.length > 0) 
+          ? clientEmbedding 
+          : await generateEmbedding(query);
 
         // 4. Vector similarity search
         sendStatus("Searching your documents...");
