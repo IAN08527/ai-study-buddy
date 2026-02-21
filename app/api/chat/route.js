@@ -29,11 +29,11 @@ CONTENT RULES:
 export async function POST(request) {
   const supabase = await createClient();
   const {
-    data: { session },
+    data: { user },
     error: authError,
-  } = await supabase.auth.getSession();
+  } = await supabase.auth.getUser();
 
-  if (authError || !session) {
+  if (authError || !user) {
     return NextResponse.json(
       { error: "Unauthorized: Please log in to perform this action." },
       { status: 401 }
@@ -86,7 +86,7 @@ export async function POST(request) {
           .from("Subject")
           .select("subject_id")
           .eq("subject_id", subjectId)
-          .eq("user_id", session.user.id)
+          .eq("user_id", user.id)
           .single();
 
         if (subjectError || !subject) {
@@ -101,7 +101,7 @@ export async function POST(request) {
           .from("Chat_history")
           .select("message_role, message_text")
           .eq("subject_id", subjectId)
-          .eq("user_id", session.user.id)
+          .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .limit(10);
 
@@ -229,8 +229,8 @@ export async function POST(request) {
         const { error: historyError } = await supabase
           .from("Chat_history")
           .insert([
-            { user_id: session.user.id, subject_id: subjectId, message_role: "user", message_text: query },
-            { user_id: session.user.id, subject_id: subjectId, message_role: "assistant", message_text: fullResponse },
+            { user_id: user.id, subject_id: subjectId, message_role: "user", message_text: query },
+            { user_id: user.id, subject_id: subjectId, message_role: "assistant", message_text: fullResponse },
           ]);
 
         if (historyError) {
