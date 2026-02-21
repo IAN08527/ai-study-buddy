@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { generateEmbedding } from "@/lib/gemini";
+import { generateEmbedding } from "@/lib/embeddings";
 import { Groq } from "groq-sdk";
 
 const SYSTEM_PROMPT = `You are an AI Study Buddy — a knowledgeable, friendly, and precise tutor. Your job is to help students understand their course material.

@@ -1,18 +1,18 @@
 /**
- * Native Gemini RAG Vectorization Script
+ * Hugging Face RAG Vectorization Script
  *
  * This script connects to Supabase, deletes all existing vectors, and re-processes
- * all PDF documents using Google's Generative AI SDK (Gemini 1.5 Pro).
+ * all PDF documents using the new Hugging Face REST API integration.
+ * It uses the 768-dim `BAAI/bge-base-en-v1.5` model to match your database schema.
  * 
  * Usage:
- *   node scripts/revectorize_gemini.js
+ *   node scripts/revectorize_hf.js
  */
 
 const fs = require('fs');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 const pdfParseLib = require('pdf-parse');
-const { Groq } = require('groq-sdk');
 
 const pdfParse = (pdfParseLib && pdfParseLib.default) ? pdfParseLib.default : pdfParseLib;
 
@@ -44,29 +44,10 @@ function loadEnv() {
 loadEnv();
 
 // ── 2. Initialize Clients ─────────────────────────────────────
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-if (!GEMINI_API_KEY) {
-  console.error('❌ Missing GEMINI_API_KEY');
+const HF_ACCESS_TOKEN = process.env.HF_ACCESS_TOKEN;
+if (!HF_ACCESS_TOKEN) {
+  console.error('❌ Missing HF_ACCESS_TOKEN');
   process.exit(1);
-}
-
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
-// No Groq initialization here as we are using fallbacks for summaries
-
-
-// We won't initialize Xenova here quite yet, we'll do it in generateEmbedding to create a singleton
-let embedderInstance = null;
-async function getEmbedder() {
-  if (!embedderInstance) {
-    console.log("Initializing Transformers.js framework...");
-    const transformers = await import('@huggingface/transformers');
-    transformers.env.allowLocalModels = false;
-    transformers.env.useBrowserCache = false;
-    
-    console.log("Loading local Xenova/bge-base-en-v1.5 model...");
-    embedderInstance = await transformers.pipeline('feature-extraction', 'Xenova/bge-base-en-v1.5');
-  }
-  return embedderInstance;
 }
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -83,12 +64,26 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function generateEmbedding(text) {
   if (!text || !text.trim()) return [];
+  const MODEL_ID = "BAAI/bge-base-en-v1.5";
+  
   try {
-    const embedder = await getEmbedder();
-    const output = await embedder(text, { pooling: 'mean', normalize: true });
-    return Array.from(output.data);
+    const response = await fetch(`https://router.huggingface.co/hf-inference/models/${MODEL_ID}`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${HF_ACCESS_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ inputs: text }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HF API HTTP error! status: ${response.status} - ${await response.text()}`);
+    }
+
+    const embedding = await response.json();
+    return embedding;
   } catch (err) {
-    throw new Error(`Local embedding failed: ${err.message}`);
+    throw new Error(`Hugging Face embedding failed: ${err.message}`);
   }
 }
 
@@ -163,22 +158,17 @@ async function processPdfForRag(buffer, resource) {
   console.log(`   📝 Generating context summaries (Simple Fallback Mode)...`);
   const chunkSummaries = [];
   
-  // We can process summaries sequentially to avoid rate limits on Groq
   for (let i = 0; i < chunks.length; i++) {
     const contextSummary = await generateContextSummary(chunks[i], resource.title);
     chunkSummaries.push(contextSummary);
-    
-    // Optional delay to avoid hitting Groq limits, but Groq's usually quite fast and limits are higher
-    await new Promise(resolve => setTimeout(resolve, 500)); 
   }
 
   // 5. Batch Embed and Store
-  console.log(`   🔄 Embedding chunks locally...`);
+  console.log(`   🔄 Fetching embeddings from Hugging Face...`);
   let stored = 0, failed = 0;
   
   for (let i = 0; i < chunks.length; i++) {
     try {
-      // Local embedding is fast enough we just map it out sequentially with no API delays :)
       const combinedText = `${chunkSummaries[i]}\n\n${chunks[i]}`;
       const embedding = await generateEmbedding(combinedText);
       
@@ -196,6 +186,9 @@ async function processPdfForRag(buffer, resource) {
       } else {
          stored++;
       }
+      
+      // Sleep slightly to respect HF free tier rate limits
+      await new Promise(r => setTimeout(r, 600));
     } catch (err) {
       console.error(`   ❌ Chunk ${i} failed: ${err.message}`);
       failed++;
@@ -209,7 +202,7 @@ async function processPdfForRag(buffer, resource) {
 // ── 5. Runner ─────────────────────────────────────────────────
 
 async function main() {
-  console.log('🚀 Starting Google Gemini Re-Vectorization Script...');
+  console.log('🚀 Starting Hugging Face Re-Vectorization Script...');
   console.log('🗑️ NOTE: ALL EXISTING VECTORS WILL BE DELETED AND RE-CREATED.\n');
 
   try {
