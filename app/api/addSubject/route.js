@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { processPdfForRag } from "@/lib/pdfProcessor";
 
+// Increase max duration for serverless function (handles large file processing)
+export const maxDuration = 60;
+
 // Helper for streaming
 function sendProgress(controller, encoder, data) {
   controller.enqueue(encoder.encode(JSON.stringify(data) + "\n"));

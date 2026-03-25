@@ -2,6 +2,10 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 
+// Module-level cache to store fetched PDF blob URLs by resourceId
+// This persists until the application window is closed (or page is hard refreshed).
+const pdfBlobCache = new Map();
+
 const NotesTab = ({ selectedResource }) => {
   const [pdfUrl, setPdfUrl] = useState(null);
   const [isLoadingPdf, setIsLoadingPdf] = useState(false);
@@ -15,17 +19,36 @@ const NotesTab = ({ selectedResource }) => {
 
   // Fetch signed URL when a resource is selected
   const fetchPdfUrl = useCallback(async (resourceId) => {
+    // 1. Check if we already have it in cache
+    if (pdfBlobCache.has(resourceId)) {
+      setPdfUrl(pdfBlobCache.get(resourceId));
+      return;
+    }
+
     setIsLoadingPdf(true);
     setPdfError(null);
     setPdfUrl(null);
     try {
+      // 2. Get signed URL from our API
       const response = await fetch(`/api/getPdfUrl/${resourceId}`);
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
         throw new Error(errData.error || `Failed to load PDF (${response.status})`);
       }
       const data = await response.json();
-      setPdfUrl(data.url);
+      const signedUrl = data.url;
+
+      // 3. Fetch the actual PDF as a blob and cache it in memory
+      const pdfResponse = await fetch(signedUrl);
+      if (!pdfResponse.ok) {
+        throw new Error(`Failed to fetch PDF document (${pdfResponse.status})`);
+      }
+      const blob = await pdfResponse.blob();
+      const blobUrl = URL.createObjectURL(blob);
+
+      // Save to cache
+      pdfBlobCache.set(resourceId, blobUrl);
+      setPdfUrl(blobUrl);
     } catch (error) {
       console.error("PDF fetch error:", error);
       setPdfError(error.message);
@@ -46,16 +69,25 @@ const NotesTab = ({ selectedResource }) => {
   const handleDownload = async () => {
     if (!pdfUrl) return;
     try {
-      const response = await fetch(pdfUrl);
-      const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
+      let downloadUrl = pdfUrl;
+      let isBlob = pdfUrl.startsWith("blob:");
+
+      if (!isBlob) {
+        const response = await fetch(pdfUrl);
+        const blob = await response.blob();
+        downloadUrl = URL.createObjectURL(blob);
+      }
+
       const a = document.createElement("a");
-      a.href = blobUrl;
+      a.href = downloadUrl;
       a.download = selectedResource?.title || "document.pdf";
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
+      
+      if (!isBlob) {
+        URL.revokeObjectURL(downloadUrl);
+      }
     } catch (err) {
       console.error("Download failed:", err);
       // Fallback: open in new tab
